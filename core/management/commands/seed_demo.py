@@ -40,7 +40,7 @@ class Command(BaseCommand):
 
         # 2. 10 Dummy Employees with User Logins
         employees_data = [
-            ("Aarav Sharma", "aarav.sharma", "Senior Software Engineer", 65000, "9876543210"),
+            ("anil", "anil", "Senior Software Engineer", 65000, "9876543210"),
             ("Priya Patel", "priya.patel", "UI/UX Designer", 48000, "9876543211"),
             ("Rohit Verma", "rohit.verma", "Backend Developer", 52000, "9876543212"),
             ("Ananya Iyer", "ananya.iyer", "HR Specialist", 42000, "9876543213"),
@@ -213,5 +213,5 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("\n" + "="*50))
         self.stdout.write(self.style.SUCCESS("Demo setup complete!"))
         self.stdout.write(self.style.SUCCESS("HR Admin:   admin / admin123"))
-        self.stdout.write(self.style.SUCCESS("Employees:  aarav.sharma / emp123 (and 9 others)"))
+        self.stdout.write(self.style.SUCCESS("Employees:  anil / emp123 (and 9 others)"))
         self.stdout.write(self.style.SUCCESS("="*50))
