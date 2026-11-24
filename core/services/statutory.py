@@ -135,7 +135,7 @@ def calculate_statutory_deductions(
             profile = None
 
     # 1. EPF (Employees' Provident Fund)
-    epf_enabled = (config.epf_enabled if config else True) and (profile.epf_enrolled if profile else True)
+    epf_enabled = (config.epf_enabled if config else False) and (profile.epf_enrolled if profile else True)
     epf_wage_ceiling = config.epf_wage_ceiling if config else Decimal("15000.00")
     restrict_ceiling = profile.epf_restrict_to_ceiling if profile else (config.epf_restrict_to_ceiling_default if config else True)
 
@@ -160,7 +160,7 @@ def calculate_statutory_deductions(
         epf_employer_total = Decimal("0.00")
 
     # 2. ESIC (Employees' State Insurance)
-    esi_enabled = (config.esi_enabled if config else True) and (profile.esi_enrolled if profile else True)
+    esi_enabled = (config.esi_enabled if config else False) and (profile.esi_enrolled if profile else True)
     esi_wage_ceiling = config.esi_wage_ceiling if config else Decimal("21000.00")
     esi_eligible = esi_enabled and (gross <= esi_wage_ceiling) and (gross > 0)
 
@@ -174,7 +174,7 @@ def calculate_statutory_deductions(
         esi_employer = Decimal("0.00")
 
     # 3. Professional Tax (PT)
-    pt_enabled = (config.pt_enabled if config else True) and (profile.pt_enrolled if profile else True)
+    pt_enabled = (config.pt_enabled if config else False) and (profile.pt_enrolled if profile else True)
     pt_state = (profile.pt_state if profile and profile.pt_state else (config.pt_state if config else "KARNATAKA"))
 
     if pt_enabled and gross > 0:
@@ -183,7 +183,7 @@ def calculate_statutory_deductions(
         pt_amount = Decimal("0.00")
 
     # 4. Tax Deducted at Source (TDS)
-    tds_amount = money(profile.monthly_tds) if profile and profile.monthly_tds else Decimal("0.00")
+    tds_amount = money(profile.monthly_tds) if (config and profile and profile.monthly_tds) else Decimal("0.00")
 
     total_employee_deductions = money(epf_employee + esi_employee + pt_amount + tds_amount)
     total_employer_contributions = money(epf_employer_total + esi_employer)

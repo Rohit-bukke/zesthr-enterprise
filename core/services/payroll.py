@@ -64,11 +64,14 @@ class PayrollCalculation:
     net_pay: Decimal
     additional_earnings: Decimal = Decimal("0")
     additional_deductions: Decimal = Decimal("0")
+    statutory_deductions: Decimal = Decimal("0")
+    employer_contributions: Decimal = Decimal("0")
+    statutory_details: dict = None
     components: tuple = ()
 
     @property
     def total_deduction(self):
-        return self.absence_deduction + self.additional_deductions
+        return self.absence_deduction + self.additional_deductions + self.statutory_deductions
 
     def __getitem__(self, key):
         """Compatibility with the report's established dictionary-style row API."""
@@ -85,6 +88,9 @@ class PayrollCalculation:
             "overtime_pay": self.overtime_pay,
             "gross": self.gross_pay,
             "net": self.net_pay,
+            "statutory_deductions": self.statutory_deductions,
+            "employer_contributions": self.employer_contributions,
+            "statutory_details": self.statutory_details or {},
         }
         try:
             return fields[key]
@@ -247,11 +253,46 @@ def calculate_employee_payroll(employee, month, year):
     for adjustment in adjustments:
         components.append((adjustment.description, adjustment.component_type, str(money(adjustment.amount))))
     earnings = sum((Decimal(amount) for _, kind, amount in components if kind == "EARNING"), Decimal(0))
-    deductions = sum((Decimal(amount) for _, kind, amount in components if kind == "DEDUCTION"), Decimal(0))
     gross_pay = money(basic_salary + overtime_pay + earnings)
-    if absence_deduction + deductions > gross_pay:
+
+    # Statutory calculations
+    from .statutory import calculate_statutory_deductions
+    statutory_config = getattr(employee.organization, "statutory_config", None)
+    statutory_profile = getattr(employee, "statutory_profile", None)
+    statutory_res = calculate_statutory_deductions(
+        employee=employee,
+        basic_salary=basic_salary,
+        gross_pay=gross_pay,
+        month=month,
+        year=year,
+        config=statutory_config,
+        profile=statutory_profile,
+    )
+    for stat_desc, stat_kind, stat_amount in statutory_res.breakdown:
+        components.append((stat_desc, stat_kind, stat_amount))
+
+    additional_deductions = sum((Decimal(amount) for desc, kind, amount in components if kind == "DEDUCTION" and desc not in [b[0] for b in statutory_res.breakdown]), Decimal(0))
+    statutory_deductions = statutory_res.total_employee_deductions
+    total_deductions = money(absence_deduction + additional_deductions + statutory_deductions)
+
+    if total_deductions > gross_pay:
         raise ValidationError(f"Deductions exceed gross pay for {employee.name}; review the adjustments.")
-    net_pay = money(gross_pay - absence_deduction - deductions)
+    net_pay = money(gross_pay - total_deductions)
+
+    statutory_details = {
+        "epf_wage": str(statutory_res.epf_wage),
+        "epf_employee": str(statutory_res.epf_employee),
+        "epf_employer_eps": str(statutory_res.epf_employer_eps),
+        "epf_employer_epf": str(statutory_res.epf_employer_epf),
+        "epf_employer_total": str(statutory_res.epf_employer_total),
+        "esi_eligible": statutory_res.esi_eligible,
+        "esi_employee": str(statutory_res.esi_employee),
+        "esi_employer": str(statutory_res.esi_employer),
+        "pt_amount": str(statutory_res.pt_amount),
+        "tds_amount": str(statutory_res.tds_amount),
+        "total_employee_deductions": str(statutory_res.total_employee_deductions),
+        "total_employer_contributions": str(statutory_res.total_employer_contributions),
+    }
 
     return PayrollCalculation(
         employee=employee,
@@ -269,7 +310,12 @@ def calculate_employee_payroll(employee, month, year):
         overtime_minutes=overtime_minutes,
         overtime_pay=overtime_pay,
         gross_pay=gross_pay,
-        net_pay=net_pay, additional_earnings=earnings, additional_deductions=deductions,
+        net_pay=net_pay,
+        additional_earnings=earnings,
+        additional_deductions=additional_deductions,
+        statutory_deductions=statutory_deductions,
+        employer_contributions=statutory_res.total_employer_contributions,
+        statutory_details=statutory_details,
         components=tuple(components),
     )
 
@@ -284,6 +330,7 @@ def calculate_payroll_rows(month, year, *, user=None, organization=None):
             "department",
             "position",
             "work_schedule", "department__work_schedule", "organization",
+            "organization__statutory_config", "statutory_profile",
         )
         .prefetch_related(
             Prefetch("attendance", queryset=Attendance.objects.filter(date__month=month, date__year=year), to_attr="_period_attendance"),
@@ -312,15 +359,33 @@ def calculate_payroll_rows(month, year, *, user=None, organization=None):
 
 
 def calculation_snapshot(row):
-    return {"employee_id": row.employee.pk, "name": row.employee.name,
-            "designation": row.employee.designation, "currency": row.employee.organization.default_currency,
-            "basic": str(row.basic_salary), "gross": str(row.gross_pay), "net": str(row.net_pay),
-            "deduction": str(row.total_deduction), "absence_deduction": str(row.absence_deduction),
-            "absent_days": str(row.absent_equivalent_days), "per_day_pay": str(row.per_day_pay),
-            "overtime_minutes": row.overtime_minutes, "overtime_pay": str(row.overtime_pay),
-            "components": row.components, "month": row.month, "year": row.year,
-            "counts": {"present": row.present_days, "half": row.half_days,
-                       "absent": row.absent_days_count, "leave": row.leave_days}}
+    return {
+        "employee_id": row.employee.pk,
+        "name": row.employee.name,
+        "designation": row.employee.designation,
+        "currency": row.employee.organization.default_currency,
+        "basic": str(row.basic_salary),
+        "gross": str(row.gross_pay),
+        "net": str(row.net_pay),
+        "deduction": str(row.total_deduction),
+        "absence_deduction": str(row.absence_deduction),
+        "statutory_deductions": str(row.statutory_deductions),
+        "employer_contributions": str(row.employer_contributions),
+        "statutory_details": row.statutory_details or {},
+        "absent_days": str(row.absent_equivalent_days),
+        "per_day_pay": str(row.per_day_pay),
+        "overtime_minutes": row.overtime_minutes,
+        "overtime_pay": str(row.overtime_pay),
+        "components": row.components,
+        "month": row.month,
+        "year": row.year,
+        "counts": {
+            "present": row.present_days,
+            "half": row.half_days,
+            "absent": row.absent_days_count,
+            "leave": row.leave_days,
+        },
+    }
 
 
 def _persist_snapshot(items):
