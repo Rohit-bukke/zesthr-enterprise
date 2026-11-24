@@ -87,3 +87,33 @@ def payroll_csv(request):
         writer.writerow([safe_cell(record.emp.employee_number), safe_cell(record.emp.name),
                          record.gross, record.deduction, record.net])
     return response
+
+
+@permission_required(roles.VIEW_PAYROLL_REPORT)
+def payout_file(request, pk, format_type="standard"):
+    run = get_object_or_404(scope_queryset(PayrollRun.objects.select_related("organization"), request.user), pk=pk)
+    if run.status != PayrollRun.FINALIZED:
+        messages.error(request, "Bank payout files can only be exported for finalized payroll runs.")
+        return redirect("payroll_run_detail", pk=run.pk)
+
+    from .services import bank_payout
+    debit_account = request.GET.get("debit_account", "")
+    try:
+        payout = bank_payout.generate_payout_file(run, format_type=format_type, debit_account=debit_account)
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+        return redirect("payroll_run_detail", pk=run.pk)
+
+    # Log audit event
+    from .models import PayrollEvent
+    PayrollEvent.objects.create(
+        run=run,
+        action="PAYOUT_EXPORTED",
+        actor=request.user,
+        reason=f"Exported {format_type.upper()} payout file ({payout.record_count} records, total: {payout.total_amount})"
+    )
+
+    response = HttpResponse(payout.content, content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{payout.filename}"'
+    response["Cache-Control"] = "private, no-store"
+    return response

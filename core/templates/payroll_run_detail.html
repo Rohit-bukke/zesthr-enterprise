@@ -8,6 +8,17 @@
 {% if run.status == "APPROVED" and perms.core.finalize_payroll %}<button class="btn" name="action" value="finalize" onclick="return confirm('Finalize this saved calculation? Payslips will be locked.');">Finalize and lock payslips</button>{% endif %}
 {% if run.status == "FINALIZED" and perms.core.reverse_payroll %}<label>Reversal reason <input name="reason" required maxlength="255"></label><button class="btn danger" name="action" value="reverse">Record reversal</button>{% endif %}
 </form><p>Approval requires a different authorized reviewer. Finalization uses the saved calculation; later source-data changes do not alter these payslips.</p></section>
+{% if run.status == "FINALIZED" %}
+<section class="card">
+  <h2>Bank Disbursement &amp; Payout Files</h2>
+  <p>Export batch payment instruction files for corporate banking portals:</p>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;">
+    <a class="btn" href="{% url 'payroll_payout_file' run.pk 'standard' %}">&#128190; Standard NEFT/RTGS Batch (.csv)</a>
+    <a class="btn ghost" href="{% url 'payroll_payout_file' run.pk 'hdfc' %}">&#127974; HDFC Bank CMS / E-Net (.csv)</a>
+    <a class="btn ghost" href="{% url 'payroll_payout_file' run.pk 'icici' %}">&#127974; ICICI Bank CIB Bulk (.csv)</a>
+  </div>
+</section>
+{% endif %}
 <section class="card"><div class="scroll"><table><thead><tr><th>Employee</th><th>Currency</th><th>Gross</th><th>Absence Ded.</th><th>Statutory Ded.</th><th>Total Deductions</th><th>Net</th></tr></thead><tbody>
 {% for row in rows %}<tr><td>{{ row.name }}</td><td>{{ row.currency }}</td><td>{{ row.gross }}</td><td>{{ row.absence_deduction|default:"0.00" }}</td><td>{{ row.statutory_deductions|default:"0.00" }}</td><td>{{ row.deduction }}</td><td>{{ row.net }}</td></tr>{% empty %}<tr><td colspan="7">Submit this draft to save its calculation for review.</td></tr>{% endfor %}</tbody></table></div></section>
 <section class="card"><h2>Audit history</h2><ul>{% for event in events %}<li>{{ event.created_at }}: {{ event.action }} by {{ event.actor|default:"System" }} {{ event.reason }}</li>{% empty %}<li>No events recorded.</li>{% endfor %}</ul></section>

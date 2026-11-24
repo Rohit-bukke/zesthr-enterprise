@@ -34,6 +34,7 @@ urlpatterns = [
     path("documents/<int:pk>/purge/", views_documents.request_purge, name="document_request_purge"),
     path("payroll/runs/", views_payroll.runs, name="payroll_runs"),
     path("payroll/runs/<int:pk>/", views_payroll.run_detail, name="payroll_run_detail"),
+    path("payroll/runs/<int:pk>/payout/<str:format_type>/", views_payroll.payout_file, name="payroll_payout_file"),
     path("payroll/export.csv", views_payroll.payroll_csv, name="payroll_csv"),
     path("leaves/balances/", views_leave.balances, name="leave_balances"),
     path("employees/<int:pk>/leave-balances/", views_leave.balances, name="employee_leave_balances"),
