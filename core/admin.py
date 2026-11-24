@@ -362,10 +362,10 @@ class LeaveBalanceAdjustmentAdmin(TenantAdmin):
         return False
 
 
-from .models import PayrollComponent, EmployeePayrollComponent, PayrollAdjustment, PayrollRun, PayrollEvent
+from .models import PayrollComponent, EmployeePayrollComponent, PayrollAdjustment, PayrollRun, PayrollEvent, OrganizationStatutoryConfig, EmployeeStatutoryProfile
 
 
-@admin.register(PayrollComponent, EmployeePayrollComponent, PayrollAdjustment)
+@admin.register(PayrollComponent, EmployeePayrollComponent, PayrollAdjustment, OrganizationStatutoryConfig, EmployeeStatutoryProfile)
 class PayrollConfigurationAdmin(TenantAdmin):
     def has_view_permission(self, request, obj=None):
         return request.user.has_perm(roles.VIEW_EMPLOYEE_PAY)
