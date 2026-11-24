@@ -330,7 +330,7 @@ def calculate_payroll_rows(month, year, *, user=None, organization=None):
             "department",
             "position",
             "work_schedule", "department__work_schedule", "organization",
-            "organization__statutory_config", "statutory_profile",
+            "organization__statutory_config", "statutory_profile", "bank_account",
         )
         .prefetch_related(
             Prefetch("attendance", queryset=Attendance.objects.filter(date__month=month, date__year=year), to_attr="_period_attendance"),
@@ -359,6 +359,17 @@ def calculate_payroll_rows(month, year, *, user=None, organization=None):
 
 
 def calculation_snapshot(row):
+    bank = getattr(row.employee, "bank_account", None)
+    bank_details = {
+        "bank_name": bank.bank_name,
+        "account_holder_name": bank.account_holder_name,
+        "account_number": bank.masked_account_number,
+        "raw_account_number": bank.account_number,
+        "ifsc_code": bank.ifsc_code,
+        "payment_method": bank.payment_method,
+        "is_verified": bank.is_verified,
+    } if bank else {}
+
     return {
         "employee_id": row.employee.pk,
         "name": row.employee.name,
@@ -372,6 +383,7 @@ def calculation_snapshot(row):
         "statutory_deductions": str(row.statutory_deductions),
         "employer_contributions": str(row.employer_contributions),
         "statutory_details": row.statutory_details or {},
+        "bank_details": bank_details,
         "absent_days": str(row.absent_equivalent_days),
         "per_day_pay": str(row.per_day_pay),
         "overtime_minutes": row.overtime_minutes,

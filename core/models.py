@@ -1282,3 +1282,5 @@ from .models_messaging import NeonIdentity  # noqa: E402,F401
 from .models_assistant import AssistantQuota  # noqa: E402,F401
 
 from .models_statutory import OrganizationStatutoryConfig, EmployeeStatutoryProfile, PT_STATE_CHOICES  # noqa: E402,F401
+
+from .models_banking import EmployeeBankAccount  # noqa: E402,F401

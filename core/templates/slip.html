@@ -43,6 +43,17 @@
     <div><dt>Department</dt><dd>{{ s.emp.department.name|default:"General" }}</dd></div>
     <div><dt>Pay Period</dt><dd>{{ month_name }} {{ s.year }}</dd></div>
     <div><dt>Generated On</dt><dd>{{ s.generated_on|date:"j M Y, H:i" }}</dd></div>
+    {% if s.calculation_snapshot.bank_details and s.calculation_snapshot.bank_details.bank_name %}
+    <div><dt>Bank Name</dt><dd>{{ s.calculation_snapshot.bank_details.bank_name }}</dd></div>
+    <div><dt>Bank Account</dt><dd>{{ s.calculation_snapshot.bank_details.account_number }}</dd></div>
+    <div><dt>IFSC Code</dt><dd>{{ s.calculation_snapshot.bank_details.ifsc_code }}</dd></div>
+    <div><dt>Disbursement Mode</dt><dd>{{ s.calculation_snapshot.bank_details.payment_method }}</dd></div>
+    {% elif s.emp.bank_account %}
+    <div><dt>Bank Name</dt><dd>{{ s.emp.bank_account.bank_name }}</dd></div>
+    <div><dt>Bank Account</dt><dd>{{ s.emp.bank_account.masked_account_number }}</dd></div>
+    <div><dt>IFSC Code</dt><dd>{{ s.emp.bank_account.ifsc_code }}</dd></div>
+    <div><dt>Disbursement Mode</dt><dd>{{ s.emp.bank_account.payment_method }}</dd></div>
+    {% endif %}
   </dl>
   <h3>Attendance Summary</h3>
   <table>

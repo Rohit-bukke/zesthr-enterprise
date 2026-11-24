@@ -8,14 +8,33 @@ from apps.organizations.admin_base import TenantAdmin
 from . import roles
 from .services import accounts
 from .models import (AttendanceAudit, SecurityEvent, Attendance, Department, Employee, EmploymentType, Holiday, JobPosition, Salary, ScheduledEmploymentChange, WorkLocation,
-                     WorkSchedule, LeaveApplication, AttendanceCorrectionRequest)
+                     WorkSchedule, LeaveApplication, AttendanceCorrectionRequest, EmployeeBankAccount)
 from .services import leave as leave_service, corrections as corrections_service
+from django.core.exceptions import PermissionDenied
+
+
+class EmployeeBankAccountInline(admin.StackedInline):
+    model = EmployeeBankAccount
+    extra = 0
+    can_delete = False
+    fields = ("bank_name", "branch_name", "account_holder_name", "account_number", "ifsc_code", "account_type", "payment_method", "upi_id", "is_verified", "verified_at", "verified_by")
+    readonly_fields = ("verified_at", "verified_by")
+
+    def has_view_permission(self, request, obj=None):
+        return request.user.has_perm(roles.VIEW_EMPLOYEE_PAY)
+
+    def has_change_permission(self, request, obj=None):
+        return request.user.has_perm(roles.CHANGE_EMPLOYEE_PAY)
+
+    def has_add_permission(self, request, obj=None):
+        return request.user.has_perm(roles.CHANGE_EMPLOYEE_PAY)
 
 
 @admin.register(Employee)
 class EmployeeAdmin(TenantAdmin):
     """The admin site must not be a back door around the role rules."""
 
+    inlines = [EmployeeBankAccountInline]
     list_display = ("employee_number", "name", "organization", "department", "position", "employment_status")
     list_filter = ("organization", "employment_status", "department")
     search_fields = ("name", "designation", "employee_number")
@@ -362,10 +381,10 @@ class LeaveBalanceAdjustmentAdmin(TenantAdmin):
         return False
 
 
-from .models import PayrollComponent, EmployeePayrollComponent, PayrollAdjustment, PayrollRun, PayrollEvent, OrganizationStatutoryConfig, EmployeeStatutoryProfile
+from .models import PayrollComponent, EmployeePayrollComponent, PayrollAdjustment, PayrollRun, PayrollEvent, OrganizationStatutoryConfig, EmployeeStatutoryProfile, EmployeeBankAccount
 
 
-@admin.register(PayrollComponent, EmployeePayrollComponent, PayrollAdjustment, OrganizationStatutoryConfig, EmployeeStatutoryProfile)
+@admin.register(PayrollComponent, EmployeePayrollComponent, PayrollAdjustment, OrganizationStatutoryConfig, EmployeeStatutoryProfile, EmployeeBankAccount)
 class PayrollConfigurationAdmin(TenantAdmin):
     def has_view_permission(self, request, obj=None):
         return request.user.has_perm(roles.VIEW_EMPLOYEE_PAY)
