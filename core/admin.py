@@ -10,7 +10,6 @@ from .services import accounts
 from .models import (AttendanceAudit, SecurityEvent, Attendance, Department, Employee, EmploymentType, Holiday, JobPosition, Salary, ScheduledEmploymentChange, WorkLocation,
                      WorkSchedule, LeaveApplication, AttendanceCorrectionRequest, EmployeeBankAccount)
 from .services import leave as leave_service, corrections as corrections_service
-from django.core.exceptions import PermissionDenied
 
 
 class EmployeeBankAccountInline(admin.StackedInline):

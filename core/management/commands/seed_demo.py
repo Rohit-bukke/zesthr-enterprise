@@ -87,6 +87,63 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS("[OK] 10 Employees and logins created (password: emp123)"))
 
+        # Seed Organization Statutory Config and Employee Statutory Profiles + Bank Accounts
+        from core.models import default_organization
+        from core.models_statutory import OrganizationStatutoryConfig, EmployeeStatutoryProfile
+        from core.models_banking import EmployeeBankAccount
+
+        default_org = default_organization()
+        stat_config, _ = OrganizationStatutoryConfig.objects.get_or_create(
+            organization=default_org,
+            defaults={
+                "epf_enabled": True,
+                "epf_wage_ceiling": 15000,
+                "epf_restrict_to_ceiling_default": True,
+                "esi_enabled": True,
+                "esi_wage_ceiling": 21000,
+                "pt_enabled": True,
+                "pt_state": "KARNATAKA",
+            }
+        )
+
+        banks = [
+            ("HDFC Bank", "HDFC0001234"),
+            ("ICICI Bank", "ICIC0000567"),
+            ("State Bank of India", "SBIN0000456"),
+            ("Kotak Mahindra Bank", "KKBK0000123"),
+            ("Axis Bank", "UTIB0000123"),
+        ]
+
+        for i, emp in enumerate(emp_objs, start=1):
+            EmployeeStatutoryProfile.objects.update_or_create(
+                employee=emp,
+                defaults={
+                    "pan_number": f"ABCDE{i:04d}F",
+                    "uan_number": f"10012345678{i:01d}",
+                    "epf_enrolled": True,
+                    "epf_restrict_to_ceiling": True,
+                    "esi_enrolled": True,
+                    "pt_enrolled": True,
+                    "monthly_tds": 500 if emp.basic_salary >= 50000 else 0,
+                }
+            )
+
+            b_name, ifsc = banks[(i - 1) % len(banks)]
+            EmployeeBankAccount.objects.update_or_create(
+                employee=emp,
+                defaults={
+                    "bank_name": b_name,
+                    "branch_name": "Bangalore Main",
+                    "account_holder_name": emp.name,
+                    "account_number": f"501001234567{i:02d}",
+                    "ifsc_code": ifsc,
+                    "account_type": "SALARY",
+                    "payment_method": "NEFT",
+                    "is_verified": True,
+                }
+            )
+        self.stdout.write(self.style.SUCCESS("[OK] Statutory compliance and verified bank accounts populated for all employees."))
+
         # 3. Indian Government Holidays (2026 Official Calendar)
         holidays_data = [
             # Gazetted Holidays (Mandatory Public Holidays)

@@ -23,6 +23,7 @@ class PayoutResult:
     total_amount: Decimal
     skipped_count: int
     format_type: str
+    skipped_reasons: tuple = ()
 
 
 def generate_payout_file(run: PayrollRun, format_type: str = "standard", debit_account: str = "") -> PayoutResult:
@@ -47,6 +48,7 @@ def generate_payout_file(run: PayrollRun, format_type: str = "standard", debit_a
 
     records = 0
     skipped = 0
+    skipped_reasons = []
     total_amount = Decimal("0.00")
     period_label = f"{run.month:02d}{run.year}"
     today_str = timezone.localdate().strftime("%d/%m/%Y")
@@ -87,8 +89,10 @@ def generate_payout_file(run: PayrollRun, format_type: str = "standard", debit_a
 
     for row in snapshot:
         net = Decimal(str(row.get("net", "0.00")))
+        emp_display = row.get("name") or f"Employee #{row.get('employee_id')}"
         if net <= Decimal("0.00"):
             skipped += 1
+            skipped_reasons.append(f"{emp_display}: Net salary is zero or negative")
             continue
 
         bank = row.get("bank_details") or {}
@@ -111,8 +115,14 @@ def generate_payout_file(run: PayrollRun, format_type: str = "standard", debit_a
             except (Employee.DoesNotExist, AttributeError):
                 pass
 
-        if not raw_account or not ifsc or method in ("CASH", "CHEQUE"):
+        if not raw_account or not ifsc:
             skipped += 1
+            skipped_reasons.append(f"{emp_display}: Missing bank account details")
+            continue
+
+        if method in ("CASH", "CHEQUE"):
+            skipped += 1
+            skipped_reasons.append(f"{emp_display}: Non-electronic disbursement method ({method})")
             continue
 
         emp_code = str(row.get("employee_id", ""))
@@ -170,4 +180,5 @@ def generate_payout_file(run: PayrollRun, format_type: str = "standard", debit_a
         total_amount=total_amount,
         skipped_count=skipped,
         format_type=format_type,
+        skipped_reasons=tuple(skipped_reasons),
     )
