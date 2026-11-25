@@ -267,6 +267,139 @@ class Command(BaseCommand):
             e.manager = lead if e != lead else None
             e.save()
         self.stdout.write(self.style.SUCCESS("[OK] Departments, location, schedule and reporting lines seeded."))
+
+        # 5. Compensation Bands & Revisions
+        from decimal import Decimal
+        from core.models_compensation import CompensationBand, SalaryRevision
+        from core.models_expenses import ExpenseCategory, ExpenseClaim
+        from apps.organizations.models import Organization
+
+        org = Organization.objects.first()
+
+        bands_data = [
+            ("BAND-L1", "Junior Associate / Associate", Decimal("25000.00"), Decimal("40000.00")),
+            ("BAND-L2", "Specialist / Mid-Level Engineer", Decimal("40000.00"), Decimal("60000.00")),
+            ("BAND-L3", "Senior / Lead Specialist", Decimal("60000.00"), Decimal("90000.00")),
+            ("BAND-L4", "Staff / Management", Decimal("90000.00"), Decimal("150000.00")),
+        ]
+        for b_code, b_name, b_min, b_max in bands_data:
+            CompensationBand.objects.get_or_create(
+                organization=org,
+                code=b_code,
+                defaults={"name": b_name, "min_base_salary": b_min, "max_base_salary": b_max, "currency": "INR"}
+            )
+        self.stdout.write(self.style.SUCCESS("[OK] Compensation salary bands seeded."))
+
+        # Revisions
+        if emp_objs:
+            # Aarav Sharma - Approved past revision
+            SalaryRevision.objects.get_or_create(
+                employee=emp_objs[0],
+                reason=SalaryRevision.REASON_ANNUAL_APPRAISAL,
+                effective_date=today - timedelta(days=90),
+                defaults={
+                    "previous_salary": Decimal("56000.00"),
+                    "revised_salary": Decimal("65000.00"),
+                    "increment_percentage": Decimal("16.07"),
+                    "status": SalaryRevision.STATUS_APPLIED,
+                    "proposed_by": admin_user,
+                    "reviewed_by": admin_user,
+                    "review_notes": "Exceeded performance targets in H1.",
+                }
+            )
+
+            # Priya Patel - Pending proposed revision
+            SalaryRevision.objects.get_or_create(
+                employee=emp_objs[1],
+                reason=SalaryRevision.REASON_PROMOTION,
+                effective_date=today + timedelta(days=1),
+                defaults={
+                    "previous_salary": Decimal("48000.00"),
+                    "revised_salary": Decimal("56000.00"),
+                    "increment_percentage": Decimal("16.67"),
+                    "status": SalaryRevision.STATUS_PROPOSED,
+                    "proposed_by": admin_user,
+                    "review_notes": "Promoted to Senior Product Designer.",
+                }
+            )
+
+            # Rohit Verma - Pending proposed revision
+            SalaryRevision.objects.get_or_create(
+                employee=emp_objs[2],
+                reason=SalaryRevision.REASON_MARKET_CORRECTION,
+                effective_date=today + timedelta(days=1),
+                defaults={
+                    "previous_salary": Decimal("52000.00"),
+                    "revised_salary": Decimal("60000.00"),
+                    "increment_percentage": Decimal("15.38"),
+                    "status": SalaryRevision.STATUS_PROPOSED,
+                    "proposed_by": admin_user,
+                    "review_notes": "Market benchmark adjustment.",
+                }
+            )
+        self.stdout.write(self.style.SUCCESS("[OK] Sample salary revisions seeded."))
+
+        # 6. Expense Categories & Claims
+        exp_categories_data = [
+            ("TRAVEL", "Travel & Conveyance", True, Decimal("20000.00")),
+            ("MEALS", "Meals & Client Entertainment", True, Decimal("5000.00")),
+            ("OFFICE", "Remote Work & Equipment", True, Decimal("15000.00")),
+            ("LEARN", "Training & Certifications", True, Decimal("25000.00")),
+        ]
+        cat_objs = {}
+        for c_code, c_name, c_req, c_max in exp_categories_data:
+            cat_objs[c_code], _ = ExpenseCategory.objects.get_or_create(
+                organization=org,
+                code=c_code,
+                defaults={"name": c_name, "requires_receipt": c_req, "max_amount_per_claim": c_max}
+            )
+        self.stdout.write(self.style.SUCCESS("[OK] Expense categories seeded."))
+
+        if emp_objs and "TRAVEL" in cat_objs and "OFFICE" in cat_objs:
+            # Aarav Sharma: Approved travel claim waiting for payroll reimbursement
+            ExpenseClaim.objects.get_or_create(
+                employee=emp_objs[0],
+                title="Bangalore Tech Summit Flight & Cab",
+                defaults={
+                    "category": cat_objs["TRAVEL"],
+                    "amount": Decimal("6450.00"),
+                    "currency": "INR",
+                    "incurred_date": today - timedelta(days=5),
+                    "status": ExpenseClaim.STATUS_APPROVED,
+                    "decided_by": admin_user,
+                    "decision_notes": "Approved for reimbursement in upcoming payroll.",
+                }
+            )
+
+            # Priya Patel: Approved remote equipment claim
+            ExpenseClaim.objects.get_or_create(
+                employee=emp_objs[1],
+                title="Ergonomic Keyboard & Dual Monitor Stand",
+                defaults={
+                    "category": cat_objs["OFFICE"],
+                    "amount": Decimal("3800.00"),
+                    "currency": "INR",
+                    "incurred_date": today - timedelta(days=10),
+                    "status": ExpenseClaim.STATUS_APPROVED,
+                    "decided_by": admin_user,
+                    "decision_notes": "Home office equipment allowance claim.",
+                }
+            )
+
+            # Rohit Verma: Pending review team dinner claim
+            ExpenseClaim.objects.get_or_create(
+                employee=emp_objs[2],
+                title="Q3 Backend Sprint Delivery Celebration Dinner",
+                defaults={
+                    "category": cat_objs["MEALS"],
+                    "amount": Decimal("2850.00"),
+                    "currency": "INR",
+                    "incurred_date": today - timedelta(days=2),
+                    "status": ExpenseClaim.STATUS_SUBMITTED,
+                }
+            )
+        self.stdout.write(self.style.SUCCESS("[OK] Sample expense claims (Approved & Pending) seeded."))
+
         self.stdout.write(self.style.SUCCESS("\n" + "="*50))
         self.stdout.write(self.style.SUCCESS("Demo setup complete!"))
         self.stdout.write(self.style.SUCCESS("HR Admin:   admin / admin123"))

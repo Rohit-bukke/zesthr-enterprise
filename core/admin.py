@@ -447,3 +447,35 @@ class PlatformGroupAdmin(GroupAdmin):
 
 from .admin_identity import register_platform_identity_admins  # noqa: E402
 register_platform_identity_admins()
+
+from .models_compensation import CompensationBand, SalaryRevision
+from .models_expenses import ExpenseCategory, ExpenseClaim
+
+
+@admin.register(CompensationBand)
+class CompensationBandAdmin(TenantAdmin):
+    list_display = ("code", "name", "department", "currency", "min_base_salary", "max_base_salary", "is_active")
+    list_filter = ("currency", "is_active", "department")
+    search_fields = ("code", "name")
+
+
+@admin.register(SalaryRevision)
+class SalaryRevisionAdmin(admin.ModelAdmin):
+    list_display = ("employee", "previous_salary", "revised_salary", "increment_percentage", "reason", "effective_date", "status")
+    list_filter = ("status", "reason", "effective_date")
+    search_fields = ("employee__name", "employee__employee_number")
+
+
+@admin.register(ExpenseCategory)
+class ExpenseCategoryAdmin(TenantAdmin):
+    list_display = ("code", "name", "requires_receipt", "max_amount_per_claim", "is_active")
+    list_filter = ("requires_receipt", "is_active")
+    search_fields = ("code", "name")
+
+
+@admin.register(ExpenseClaim)
+class ExpenseClaimAdmin(admin.ModelAdmin):
+    list_display = ("claim_number", "employee", "category", "title", "amount", "currency", "incurred_date", "status")
+    list_filter = ("status", "category", "incurred_date")
+    search_fields = ("claim_number", "employee__name", "title")
+

@@ -1284,3 +1284,5 @@ from .models_assistant import AssistantQuota  # noqa: E402,F401
 from .models_statutory import OrganizationStatutoryConfig, EmployeeStatutoryProfile, PT_STATE_CHOICES  # noqa: E402,F401
 
 from .models_banking import EmployeeBankAccount  # noqa: E402,F401
+from .models_compensation import CompensationBand, SalaryRevision  # noqa: E402,F401
+from .models_expenses import ExpenseCategory, ExpenseClaim  # noqa: E402,F401

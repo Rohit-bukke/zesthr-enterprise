@@ -4,6 +4,7 @@ from . import views_notifications
 from . import views_anomalies
 from . import views_documents
 from . import views_payroll
+from . import views_compensation
 from . import views_leave
 from django.contrib.auth import views as auth
 from django.contrib.auth.decorators import login_required
@@ -36,6 +37,13 @@ urlpatterns = [
     path("payroll/runs/<int:pk>/", views_payroll.run_detail, name="payroll_run_detail"),
     path("payroll/runs/<int:pk>/payout/<str:format_type>/", views_payroll.payout_file, name="payroll_payout_file"),
     path("payroll/export.csv", views_payroll.payroll_csv, name="payroll_csv"),
+    path("compensation/", views_compensation.compensation_dashboard, name="compensation_dashboard"),
+    path("compensation/my/", views_compensation.my_compensation, name="my_compensation"),
+    path("compensation/revisions/propose/", views_compensation.salary_revision_propose, name="salary_revision_propose"),
+    path("compensation/revisions/<int:pk>/action/", views_compensation.salary_revision_action, name="salary_revision_action"),
+    path("expenses/", views_compensation.expenses_list, name="expenses_list"),
+    path("expenses/submit/", views_compensation.expense_submit, name="expense_submit"),
+    path("expenses/<int:pk>/action/", views_compensation.expense_action, name="expense_action"),
     path("leaves/balances/", views_leave.balances, name="leave_balances"),
     path("employees/<int:pk>/leave-balances/", views_leave.balances, name="employee_leave_balances"),
     path("login/", a.LoginView.as_view(), name="login"),

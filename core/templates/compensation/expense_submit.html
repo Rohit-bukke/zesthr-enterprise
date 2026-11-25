@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Submit Expense Claim | HROS{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Submit Expense Reimbursement</h1>
+    <p>File an out-of-pocket business expense for manager approval and payroll reimbursement.</p>
+  </div>
+  <a class="btn ghost" href="{% url 'expenses_list' %}">&larr; Back to Claims</a>
+</div>
+
+<section class="card" style="max-width:640px;">
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <p>
+      <label for="category_id"><strong>Expense Category</strong></label>
+      <select id="category_id" name="category_id" required style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+        <option value="">-- Choose Category --</option>
+        {% for cat in categories %}
+        <option value="{{ cat.pk }}">{{ cat.name }}{% if cat.max_amount_per_claim %} (Max: ₹{{ cat.max_amount_per_claim }}){% endif %}</option>
+        {% endfor %}
+      </select>
+    </p>
+
+    <p>
+      <label for="title"><strong>Expense Title / Purpose</strong></label>
+      <input type="text" id="title" name="title" required placeholder="e.g. Client Dinner - Pune HQ / Flight Ticket to Bangalore" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+    </p>
+
+    <p>
+      <label for="amount"><strong>Total Amount (₹)</strong></label>
+      <input type="number" step="0.01" min="1" id="amount" name="amount" required placeholder="e.g. 2450.00" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+    </p>
+
+    <p>
+      <label for="incurred_date"><strong>Date Incurred</strong></label>
+      <input type="date" id="incurred_date" name="incurred_date" value="{{ today|date:'Y-m-d' }}" required style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+    </p>
+
+    <p>
+      <label for="receipt"><strong>Receipt / Invoice (PDF or Image)</strong></label>
+      <input type="file" id="receipt" name="receipt" accept=".pdf,.png,.jpg,.jpeg" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+      <small style="color:#64748b;">Upload a bill, invoice, or boarding pass supporting this claim.</small>
+    </p>
+
+    <p>
+      <label for="description"><strong>Additional Details (Optional)</strong></label>
+      <textarea id="description" name="description" rows="3" placeholder="Provide extra context, attendees, project codes..." style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;"></textarea>
+    </p>
+
+    <div style="display:flex;gap:12px;margin-top:16px;">
+      <button type="submit" class="btn">Submit Claim</button>
+      <a class="btn ghost" href="{% url 'expenses_list' %}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

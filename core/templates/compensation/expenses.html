@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Expense Claims & Reimbursements | HROS{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Expense Claims &amp; Reimbursements</h1>
+    <p>Track business expenses, submit receipts, and review reimbursements paid through payroll.</p>
+  </div>
+  {% if user.employee_profile %}
+  <a class="btn" href="{% url 'expense_submit' %}">+ Submit New Expense</a>
+  {% endif %}
+</div>
+
+{% if can_review and pending_review %}
+<!-- Manager / HR Review Queue -->
+<section class="card" style="border-left:4px solid #f59e0b;">
+  <h2>Claims Pending Review ({{ pending_review.count }})</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Claim #</th>
+          <th>Employee</th>
+          <th>Title &amp; Category</th>
+          <th>Amount</th>
+          <th>Incurred On</th>
+          <th>Receipt</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for claim in pending_review %}
+        <tr>
+          <td><code>{{ claim.claim_number }}</code></td>
+          <td><b>{{ claim.employee.name }}</b></td>
+          <td>
+            <b>{{ claim.title }}</b><br>
+            <small>{{ claim.category.name }}</small>
+          </td>
+          <td><b>₹{{ claim.amount }}</b></td>
+          <td>{{ claim.incurred_date }}</td>
+          <td>
+            {% if claim.receipt %}
+            <a href="{{ claim.receipt.url }}" target="_blank" class="btn ghost" style="padding:2px 8px;font-size:0.8rem;">View Receipt</a>
+            {% else %}
+            <span style="color:#94a3b8;">None</span>
+            {% endif %}
+          </td>
+          <td>
+            <form method="post" action="{% url 'expense_action' claim.pk %}" style="display:inline-flex;gap:6px;">
+              {% csrf_token %}
+              <button class="btn" name="action" value="approve" style="padding:4px 8px;font-size:0.85rem;" onclick="return confirm('Approve this expense claim for payroll reimbursement?');">Approve</button>
+              <button class="btn ghost danger" name="action" value="reject" style="padding:4px 8px;font-size:0.85rem;" onclick="return confirm('Reject this expense claim?');">Reject</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<!-- My Expense Claims Table -->
+<section class="card">
+  <h2>My Expense Claims</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Claim #</th>
+          <th>Title</th>
+          <th>Category</th>
+          <th>Amount</th>
+          <th>Incurred Date</th>
+          <th>Status</th>
+          <th>Receipt</th>
+          <th>Submitted On</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for claim in my_claims %}
+        <tr>
+          <td><code>{{ claim.claim_number }}</code></td>
+          <td><b>{{ claim.title }}</b></td>
+          <td>{{ claim.category.name }}</td>
+          <td><b>₹{{ claim.amount }}</b></td>
+          <td>{{ claim.incurred_date }}</td>
+          <td>
+            {% if claim.status == "PAID" %}
+            <span class="badge" style="background:#dcfce7;color:#15803d;">Paid via Payroll</span>
+            {% elif claim.status == "APPROVED" %}
+            <span class="badge" style="background:#e0f2fe;color:#0369a1;">Approved (Awaiting Payroll)</span>
+            {% elif claim.status == "REJECTED" %}
+            <span class="badge" style="background:#fee2e2;color:#b91c1c;">Rejected</span>
+            {% else %}
+            <span class="badge" style="background:#fef3c7;color:#b45309;">Pending Review</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if claim.receipt %}
+            <a href="{{ claim.receipt.url }}" target="_blank">View File</a>
+            {% else %}
+            -
+            {% endif %}
+          </td>
+          <td>{{ claim.submitted_at|date:"d M Y" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8">You have not submitted any expense reimbursement claims.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

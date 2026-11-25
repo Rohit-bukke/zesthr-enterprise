@@ -66,7 +66,9 @@ class PayrollCalculation:
     additional_deductions: Decimal = Decimal("0")
     statutory_deductions: Decimal = Decimal("0")
     employer_contributions: Decimal = Decimal("0")
+    expense_reimbursements: Decimal = Decimal("0")
     statutory_details: dict = None
+    expense_details: tuple = ()
     components: tuple = ()
 
     @property
@@ -277,7 +279,16 @@ def calculate_employee_payroll(employee, month, year):
 
     if total_deductions > gross_pay:
         raise ValidationError(f"Deductions exceed gross pay for {employee.name}; review the adjustments.")
-    net_pay = money(gross_pay - total_deductions)
+
+    # Expense Reimbursements (non-taxable payout to employee)
+    unpaid_claims = []
+    if hasattr(employee, "expense_claims"):
+        unpaid_claims = list(employee.expense_claims.filter(status="APPROVED", payroll_run__isnull=True))
+    expense_reimbursements = money(sum((claim.amount for claim in unpaid_claims), Decimal("0.00")))
+    for claim in unpaid_claims:
+        components.append((f"Expense Reimbursement: {claim.title}", "REIMBURSEMENT", str(money(claim.amount))))
+
+    net_pay = money(gross_pay - total_deductions + expense_reimbursements)
 
     statutory_details = {
         "epf_wage": str(statutory_res.epf_wage),
@@ -315,7 +326,9 @@ def calculate_employee_payroll(employee, month, year):
         additional_deductions=additional_deductions,
         statutory_deductions=statutory_deductions,
         employer_contributions=statutory_res.total_employer_contributions,
+        expense_reimbursements=expense_reimbursements,
         statutory_details=statutory_details,
+        expense_details=tuple((c.claim_number, c.title, str(c.amount)) for c in unpaid_claims),
         components=tuple(components),
     )
 
@@ -382,7 +395,9 @@ def calculation_snapshot(row):
         "absence_deduction": str(row.absence_deduction),
         "statutory_deductions": str(row.statutory_deductions),
         "employer_contributions": str(row.employer_contributions),
+        "expense_reimbursements": str(row.expense_reimbursements),
         "statutory_details": row.statutory_details or {},
+        "expense_details": row.expense_details,
         "bank_details": bank_details,
         "absent_days": str(row.absent_equivalent_days),
         "per_day_pay": str(row.per_day_pay),
@@ -521,6 +536,8 @@ def finalize_payroll(run, user):
     if run.status != PayrollRun.APPROVED or not run.calculation_snapshot:
         raise ValidationError("Only approved payroll with a calculation snapshot can be finalized.")
     _persist_snapshot(run.calculation_snapshot)
+    from .expenses import mark_expenses_reimbursed_for_run
+    mark_expenses_reimbursed_for_run(run)
     run.status, run.finalized_by, run.finalized_at = PayrollRun.FINALIZED, user, timezone.now()
     run.save(update_fields=["status", "finalized_by", "finalized_at"])
     _event(run, "FINALIZED", user)
@@ -533,6 +550,8 @@ def reverse_payroll(run, *, user, reason):
     _authorize_run(run, user, "core.reverse_payroll")
     if run.status != PayrollRun.FINALIZED or not reason.strip():
         raise ValidationError("Only finalized payroll can be reversed, with an explanation.")
+    from core.models_expenses import ExpenseClaim
+    ExpenseClaim.objects.filter(payroll_run=run).update(status=ExpenseClaim.STATUS_APPROVED, payroll_run=None)
     run.status = PayrollRun.REVERSED
     run.save(update_fields=["status"])
     _event(run, "REVERSED", user, reason)
