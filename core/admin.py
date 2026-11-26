@@ -479,3 +479,15 @@ class ExpenseClaimAdmin(admin.ModelAdmin):
     list_filter = ("status", "category", "incurred_date")
     search_fields = ("claim_number", "employee__name", "title")
 
+
+from .models_onboarding import CandidateInvitation
+
+
+@admin.register(CandidateInvitation)
+class CandidateInvitationAdmin(TenantAdmin):
+    list_display = ("full_name", "email", "department", "position", "proposed_joining_date", "expires_at", "status")
+    list_filter = ("status", "department", "proposed_joining_date")
+    search_fields = ("first_name", "last_name", "email", "token")
+    readonly_fields = ("token", "created_at", "accepted_at")
+
+

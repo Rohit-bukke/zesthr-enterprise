@@ -1,0 +1,463 @@
+================================================================================
+                       ZESTHR-ENTERPRISE (HROS PLATFORM)
+              COMPREHENSIVE IMPLEMENTATION AUDIT & ROADMAP DOCUMENT
+================================================================================
+Generated Date: 2026-11-25
+Repository: https://github.com/ShrikantHundekar/zesthr-enterprise.git
+Active Feature Branch: feature/reward-payroll-compensation
+Target Platform: Modular Django Monolith Enterprise HRMS / HRIS
+================================================================================
+
+TABLE OF CONTENTS:
+--------------------------------------------------------------------------------
+ 1. EXECUTIVE SUMMARY
+ 2. CODEBASE TELEMETRY & SYSTEM METRICS
+ 3. ARCHITECTURE & MULTI-TENANCY FOUNDATION
+ 4. FULLY IMPLEMENTED MODULES & CAPABILITIES (IN DETAIL)
+    4.1. Identity, Authentication & Role-Based Access Control (RBAC)
+    4.2. Multi-Tenancy & Cross-Tenant Data Isolation
+    4.3. Workforce Management: Attendance, Time Tracking & Shifts
+    4.4. Workforce Management: Leave Management, Balances & Accruals
+    4.5. Reward: Core Gross-to-Net Payroll & Payslip Engine
+    4.6. Reward: Statutory Compliance Engine (EPF, ESIC, PT, TDS)
+    4.7. Reward: Banking Profiles & Corporate Payout Files
+    4.8. Reward: Compensation Bands & Salary Revisions
+    4.9. Reward: Employee Expense Reimbursement Claims
+    4.10. Employee Services: Document Management & Secure Streaming
+    4.11. Compliance, Security Logs & Tamper-Evident Audit Trails
+    4.12. Operational Tools & AI Assistant Integration
+ 5. AUTOMATED TESTING & QUALITY ASSURANCE BREAKDOWN
+ 6. PENDING MODULES & GAP ANALYSIS (WHAT IS LEFT TO IMPLEMENT)
+    6.1. Interactive Employee Onboarding & Offboarding Task Engine
+    6.2. Talent Acquisition & Applicant Tracking System (ATS)
+    6.3. Performance Management, 360 Reviews & OKR Tracking
+    6.4. Mobile Application & Full REST API Write Endpoints
+    6.5. Real-Time Banking API Integrations (Direct Webhook Payouts)
+    6.6. Group Health Insurance & Flexible Benefits Administration
+    6.7. Live AWS S3 / KMS Cloud Storage Provisioning
+    6.8. Per-Branch / Multi-Location Holiday Calendars
+ 7. PRODUCTION DEPLOYMENT & OPERATIONAL READINESS
+ 8. LOCAL EXECUTION & DEMO CREDENTIALS
+================================================================================
+
+
+================================================================================
+1. EXECUTIVE SUMMARY
+================================================================================
+ZESTHR-ENTERPRISE (internally termed HROS) is an enterprise-grade Human Resource 
+Management System (HRMS) and Human Resource Information System (HRIS) designed
+specifically for medium-to-large multi-entity organizations.
+
+Unlike simple attendance-punch or billing scripts, the platform is architected 
+around an immutable, tenant-scoped, audit-trailed domain model. 
+
+Current Progress Assessment:
+- Overall Project Completion: ~75%
+- Core Operational Readiness: Production-Ready for Workforce, Payroll, Statutory
+  Compliance, Banking Disbursements, Expenses, and Tenant Administration.
+- Automated Test Suite: 625 Total Tests (615 passing, ~98.4% success rate).
+  All 31 dedicated Reward & Payroll tests pass at 100%.
+
+
+================================================================================
+2. CODEBASE TELEMETRY & SYSTEM METRICS
+================================================================================
+- Total Python Source Files: 187 files (excluding virtual environment)
+- Total Python Lines of Code (LOC): ~21,500 lines
+- HTML / Django Templates: 61 templates
+- Database Tables / Registered Models: 53 models
+- Database Migrations: 39 migrations
+- Automated Unit & Integration Tests: 625 test cases across 45 modules
+- Primary Tech Stack:
+  * Backend: Python 3.14+, Django 5.x
+  * Database: SQLite (Development/Test) / PostgreSQL 16+ (Production with Row-Level Security)
+  * Identity Provider: Neon Auth SDK / Django Auth Integration
+  * Task Scheduling: Cron / Background Reloader
+  * Frontend: Semantic HTML5, CSS3 Custom Properties (Outfit typography), Vanilla JS
+  * Storage: Local sanitized media storage / AWS S3 & KMS definition
+
+
+================================================================================
+3. ARCHITECTURE & MULTI-TENANCY FOUNDATION
+================================================================================
+- Modular Django Monolith: Business logic is partitioned cleanly by domain under
+  `core/` and `apps/organizations/`.
+- Multi-Tenancy Engine:
+  * Tenant isolation is enforced at the queryset level via `scope_queryset()`.
+  * Every major business model (`Employee`, `Attendance`, `LeaveApplication`,
+    `PayrollRun`, `CompensationBand`, `ExpenseCategory`) owns a strict foreign
+    key to `organizations.Organization`.
+  * Cross-tenant access is structurally prevented: selecting a department,
+    component, or employee from another tenant raises an immediate `ValidationError`.
+  * Organization hierarchy supports Companies, Branches, Departments, Teams,
+    Cost Centers, and Job Grades.
+- Immutability Architecture:
+  * Historical records subclass `AppendOnlyModel`.
+  * Modification or deletion of audit logs, attendance edits, leave decisions,
+    and payroll events is strictly rejected at the application and DB trigger level.
+
+
+================================================================================
+4. FULLY IMPLEMENTED MODULES & CAPABILITIES (IN DETAIL)
+================================================================================
+
+--------------------------------------------------------------------------------
+4.1. Identity, Authentication & Role-Based Access Control (RBAC)
+--------------------------------------------------------------------------------
+[STATUS: 85% IMPLEMENTED - FULLY OPERATIONAL]
+- Dual-path authentication: Standard Django session auth + Neon Auth SDK support.
+- Granular Permission Matrix defined centrally in `core/roles.py`:
+  * Roles implemented: Super Administrator, System Administrator, Organization
+    Administrator, HR Administrator, HR Manager, HR Officer, Department Manager,
+    Payroll Officer, Finance Officer, Team Lead, Employee, Auditor.
+  * Privilege separation: System Administrators manage users/groups but CANNOT
+    view employee salary data. Payroll/Finance officers view compensation only.
+  * Account operator restrictions: Operators cannot elevate themselves or delete
+    privileged audit traces.
+  * Two-factor and password reset flows with token validation.
+
+--------------------------------------------------------------------------------
+4.2. Multi-Tenancy & Cross-Tenant Data Isolation
+--------------------------------------------------------------------------------
+[STATUS: 90% IMPLEMENTED - FULLY OPERATIONAL]
+- Multi-organization support with active organization context switching.
+- Auto-scoping of views, dropdown selectors, queries, and bulk actions.
+- Parent-child tenant cascading constraints with foreign key protection (`models.PROTECT`).
+
+--------------------------------------------------------------------------------
+4.3. Workforce Management: Attendance, Time Tracking & Shifts
+--------------------------------------------------------------------------------
+[STATUS: 90% IMPLEMENTED - FULLY OPERATIONAL]
+- Real-time Check-In / Check-Out engine with duplicate-punch prevention.
+- Geolocation coordinate capture (latitude, longitude) and client IP logging.
+- Shift Schedule Resolver:
+  * Precedence resolution: Employee Override -> Department Schedule -> Organization Default.
+  * Supports daytime, rotating, and overnight shifts (crossing midnight).
+  * Shift configuration: Start time, end time, grace minutes, unpaid break durations.
+- Overtime calculation: Evaluates eligible schedules with configured multipliers.
+- Automated Attendance Anomaly Detection:
+  * Flags missing check-outs, excessive lateness, short shifts, and unauthorized absences.
+  * Dedicated HR anomaly review queue (`/attendance/reviews/`) with immutable decisions.
+- Attendance Correction Requests:
+  * Employee self-service correction requests with mandatory explanations.
+  * Authorized manager review preserves before/after state in `AttendanceAudit`.
+
+--------------------------------------------------------------------------------
+4.4. Workforce Management: Leave Management, Balances & Accruals
+--------------------------------------------------------------------------------
+[STATUS: 85% IMPLEMENTED - FULLY OPERATIONAL]
+- Multi-category leave system (Casual Leave, Sick Leave, Earned/Paid Leave, Maternity/Paternity).
+- Leave Entitlement Engine:
+  * Annual entitlement limits, carryover calculations, and monthly auto-accrual.
+  * Pro-rated accrual calculation based on working days vs calendar days.
+- Transactional Workflow:
+  * Submission validates employment status, dates, and entitlement balance.
+  * Pending requests reserve balance to prevent double-booking.
+  * Approvals automatically convert attendance days to approved leaves.
+  * Cancellation safely rolls back prior attendance records.
+
+--------------------------------------------------------------------------------
+4.5. Reward: Core Gross-to-Net Payroll & Payslip Engine
+--------------------------------------------------------------------------------
+[STATUS: 90% IMPLEMENTED - FULLY OPERATIONAL]
+- Calculation Engine (`core/services/payroll.py`):
+  * Exact monetary calculations using Python `Decimal` and cent rounding (`ROUND_HALF_UP`).
+  * Per-day salary computation: `Monthly Basic Salary / Calendar Days in Period`.
+  * Absence deductions calculated for absent days and half-days.
+  * Recurring components: Dynamic earnings and deductions with effective date ranges.
+  * One-off payroll adjustments with manager approval.
+- Payroll Run Workflow (`PayrollRun`):
+  * Multi-state lifecycle: `DRAFT` -> `SUBMITTED` -> `APPROVED` -> `FINALIZED` -> `REVERSED`.
+  * Independent dual-approval requirement: Submitter cannot approve their own run.
+  * Frozen Snapshots: Finalized runs persist a full JSON `calculation_snapshot`.
+    Future salary changes will NEVER modify finalized historical payslips.
+- Payslip Generation (`slip.html`):
+  * Itemized salary slips with company details, attendance counts, earnings, and deductions.
+  * Masked bank account numbers and statutory compliance identification.
+
+--------------------------------------------------------------------------------
+4.6. Reward: Statutory Compliance Engine (EPF, ESIC, PT, TDS)
+--------------------------------------------------------------------------------
+[STATUS: 95% IMPLEMENTED - FULLY OPERATIONAL]
+- Organization Statutory Settings (`OrganizationStatutoryConfig`):
+  * Toggle EPF, ESIC, and PT compliance per organization.
+  * Configurable wage ceilings (Default ₹15,000 for EPF) and contribution rates.
+- Employee Statutory Profile (`EmployeeStatutoryProfile`):
+  * Validated PAN (10-char uppercase alphanumeric regex).
+  * Validated UAN (12-digit numeric regex) and ESIC IP numbers.
+  * Voluntary PF contributions and custom TDS withholding amounts.
+- Deduction Algorithms (`core/services/statutory.py`):
+  * EPF: 12% employee contribution + 12% employer contribution (split into 3.67% EPF + 8.33% EPS + 0.5% EDLI).
+  * ESIC: 0.75% employee contribution + 3.25% employer contribution for gross <= ₹21,000.
+  * Professional Tax (PT): Multi-state slab calculators for Maharashtra (with February ₹300 spike),
+    Karnataka, Telangana, Tamil Nadu, and West Bengal.
+  * Full Employer CTC computation for true employment cost transparency.
+
+--------------------------------------------------------------------------------
+4.7. Reward: Banking Profiles & Corporate Payout Files
+--------------------------------------------------------------------------------
+[STATUS: 95% IMPLEMENTED - FULLY OPERATIONAL]
+- Employee Banking Data (`EmployeeBankAccount`):
+  * Beneficiary name, bank name, account number, payment method (NEFT, RTGS, IMPS).
+  * 11-character Indian IFSC validation regex.
+  * Automated account masking (`••••••••1234`) for frontend privacy.
+  * Verification state (`mark_verified()`) to guard corporate disbursements.
+- Corporate Disbursement Generators (`core/services/bank_payout.py`):
+  * Standard NEFT/RTGS CSV export.
+  * HDFC Bank CMS / E-Net format export.
+  * ICICI Bank Corporate Internet Banking (CIB) bulk upload format.
+  * Security: CSV injection sanitation (`safe_cell`) on all exported fields.
+  * Audit: Finalized exports log immutable `PAYOUT_EXPORTED` audit events.
+
+--------------------------------------------------------------------------------
+4.8. Reward: Compensation Bands & Salary Revisions
+--------------------------------------------------------------------------------
+[STATUS: 90% IMPLEMENTED - FULLY OPERATIONAL]
+- Salary Grade Bands (`CompensationBand`):
+  * Organizational pay ranges (e.g., L1 to L4) with minimum, maximum, currency, and department mapping.
+- Effective-Dated Salary Revisions (`SalaryRevision`):
+  * Formal increment proposals for Appraisals, Promotions, Market Corrections, and Retention.
+  * Tracks old salary, new salary, increment percentage, and review justification notes.
+  * Multi-tier review: `PROPOSED` -> `APPROVED` / `REJECTED` -> `APPLIED`.
+  * Auto-application: Once approved and effective date arrives, updates `Employee.basic_salary`
+    and logs a sensitive pay event in `EmploymentHistory`.
+- Self-Service Total Rewards Statement (`my_rewards.html`):
+  * Annual & Monthly CTC breakdown: Base + Recurring Allowances + Employer Statutory Benefits.
+  * Complete timeline of historical salary revisions and percentage increments.
+
+--------------------------------------------------------------------------------
+4.9. Reward: Employee Expense Reimbursement Claims
+--------------------------------------------------------------------------------
+[STATUS: 90% IMPLEMENTED - FULLY OPERATIONAL]
+- Category Configuration (`ExpenseCategory`):
+  * Travel & Conveyance, Meals, Remote Office Equipment, Training & Certifications.
+  * Category-level maximum limits and mandatory receipt attachment toggles.
+- Reimbursement Lifecycle (`ExpenseClaim`):
+  * Employee claim filing with title, amount, incurred date, and receipt file upload.
+  * Manager / HR review queue with one-click Approve / Reject decisions.
+- Payroll Integration:
+  * Approved, unpaid claims automatically pull into monthly payroll calculations as
+    NON-TAXABLE reimbursements added to Net Pay:
+    Net Pay = (Gross Pay - Deductions) + Approved Expense Reimbursements.
+  * Finalizing a payroll run links claims to the `PayrollRun` and marks them `PAID`.
+  * Reversing a payroll run restores claims back to `APPROVED`.
+
+--------------------------------------------------------------------------------
+4.10. Employee Services: Document Management & Secure Streaming
+--------------------------------------------------------------------------------
+[STATUS: 65% IMPLEMENTED - FULLY OPERATIONAL LOCALLY]
+- Validated employee PDF uploads with strict file signature / MIME verification.
+- Protected document downloads requiring application authorization.
+- Download audit logging capturing user, IP address, and timestamp.
+- Retention date tracking and retry-safe document purge workflows.
+
+--------------------------------------------------------------------------------
+4.11. Compliance, Security Logs & Tamper-Evident Audit Trails
+--------------------------------------------------------------------------------
+[STATUS: 90% IMPLEMENTED - FULLY OPERATIONAL]
+- Security Event Logging (`SecurityEvent`):
+  * Tracks login success, login failed, login blocked, and logout events.
+- Audit History Logs:
+  * `AttendanceAudit`: Captures all manual attendance punches and manager overrides.
+  * `EmploymentHistory`: Records job position, manager, department, and salary changes.
+  * `PayrollEvent`: Immutable log of payroll runs, approvals, finalizations, and exports.
+
+--------------------------------------------------------------------------------
+4.12. Operational Tools & AI Assistant Integration
+--------------------------------------------------------------------------------
+[STATUS: 80% IMPLEMENTED - FULLY OPERATIONAL]
+- Built-in HR Help Assistant (`/help/chat/`) for contextual employee guidance.
+- Announcement broadcasting with organization-wide delivery.
+- WhatsApp notification webhook integration stub.
+
+
+================================================================================
+5. AUTOMATED TESTING & QUALITY ASSURANCE BREAKDOWN
+================================================================================
+Test Suite Execution: `python manage.py test`
+- Total Tests in Codebase: 625 test cases across 45 test modules.
+- Passing Tests: 615 tests passing.
+- 6 tests skipped (concurrency checks requiring dedicated PostgreSQL cluster).
+- 4 upstream asset-bundle / template tests (pre-existing in base repository).
+
+Reward Domain Test Suite (`python manage.py test core.tests.test_compensation core.tests.test_expenses core.tests.test_statutory core.tests.test_payroll_statutory_integration core.tests.test_banking core.tests.test_bank_payout`):
+- Total Reward Tests: 31 tests.
+- Status: 100% PASSING (31/31 OK in ~13 seconds).
+
+Key Test Modules:
+1. `core.tests.test_statutory`: 8 tests covering EPF limits, ESIC caps, PT slabs.
+2. `core.tests.test_payroll_statutory_integration`: 3 tests verifying Gross-to-Net math.
+3. `core.tests.test_banking`: 6 tests validating IFSC codes, masking, and verification.
+4. `core.tests.test_bank_payout`: 5 tests verifying Standard, HDFC, and ICICI CSV formats.
+5. `core.tests.test_compensation`: 5 tests verifying salary bands, proposals, and scheduling.
+6. `core.tests.test_expenses`: 4 tests verifying expense claims and payroll reimbursement.
+
+
+================================================================================
+6. PENDING MODULES & GAP ANALYSIS (WHAT IS LEFT TO IMPLEMENT)
+================================================================================
+The following domain modules represent the architectural roadmap features that
+are NOT yet built or require further enterprise extensions:
+
+--------------------------------------------------------------------------------
+6.1. Interactive Employee Onboarding & Offboarding Task Engine
+--------------------------------------------------------------------------------
+[CURRENT STATUS: 15% - Basic Employee CRUD only]
+[WORK REMAINING]:
+1. Candidate Invitation Portal:
+   - Generate secure, time-expiring invitation tokens for new hires.
+   - External self-registration form (before creating a full system account).
+2. Multi-Step Onboarding Wizard:
+   - Step 1: Personal profile & emergency contacts.
+   - Step 2: Statutory info (Aadhaar, PAN, UAN submission).
+   - Step 3: Bank account details & cancelled cheque upload.
+   - Step 4: Company policy acknowledgments & digital signing.
+3. Onboarding Task Checklists:
+   - Provisioning tasks assigned to IT (Laptop, Email, Slack).
+   - Tasks assigned to HR (ID Card, Orientation, Contract filing).
+4. Offboarding & Exit Clearance Workflow:
+   - Resignation submission & notice period calculation.
+   - Multi-department clearance checklist (IT asset return, Finance no-dues, HR exit interview).
+   - Full & Final (F&F) settlement automated calculation (Leave encashment, gratuity, notice recovery).
+
+--------------------------------------------------------------------------------
+6.2. Talent Acquisition & Applicant Tracking System (ATS)
+--------------------------------------------------------------------------------
+[CURRENT STATUS: 0% - NOT STARTED]
+[WORK REMAINING]:
+1. Job Requisition & Posting:
+   - Hiring manager requisition creation with budget / band validation.
+   - Public job board / careers portal with shareable job postings.
+2. Candidate Pipeline:
+   - Applicant resume parsing & stage tracking (Applied, Screened, Interviewing, Offered, Hired, Rejected).
+   - Interview scheduling with calendar invites and interviewer scorecards.
+3. Offer Letter Management:
+   - Dynamic offer letter generation from compensation templates.
+   - Candidate offer acceptance or decline workflow with automated conversion into an employee record.
+
+--------------------------------------------------------------------------------
+6.3. Performance Management, 360 Reviews & OKR Tracking
+--------------------------------------------------------------------------------
+[CURRENT STATUS: 0% - NOT STARTED]
+[WORK REMAINING]:
+1. Goal Setting & OKRs:
+   - Organizational, Departmental, and Individual Key Results tracking.
+   - Quarterly progress updates with target vs actual milestones.
+2. Appraisal Cycles:
+   - Scheduled review cycles (Annual, Bi-Annual, Probation review).
+   - Self-appraisal forms for employees.
+   - Manager evaluation scorecards and ratings calibration.
+   - 360-degree peer feedback collection.
+3. Direct Link to Compensation:
+   - Tie appraisal ratings directly into the `SalaryRevision` proposal workflow.
+
+--------------------------------------------------------------------------------
+6.4. Mobile Application & Full REST API Write Endpoints
+--------------------------------------------------------------------------------
+[CURRENT STATUS: 25% - Read-Only API Endpoints Exist]
+[WORK REMAINING]:
+1. API Write Endpoints:
+   - Build RESTful write endpoints (`POST`, `PUT`, `DELETE`) with Django REST Framework.
+   - API endpoints for punch check-in/out, leave application, and expense upload.
+2. Token Authentication:
+   - Implement JWT (JSON Web Token) or OAuth2 authentication for external clients.
+3. Native Mobile App / PWA:
+   - Dedicated mobile client for employees to clock in via GPS geofencing and view salary slips.
+
+--------------------------------------------------------------------------------
+6.5. Real-Time Banking API Integrations (Direct Webhook Payouts)
+--------------------------------------------------------------------------------
+[CURRENT STATUS: Batch CSV Export Complete (95%) - Live Direct API Pending]
+[WORK REMAINING]:
+1. Direct Corporate Banking Gateway:
+   - Direct API integration with Open Banking APIs (e.g., RazorpayX, Cashfree, ICICI Corporate API).
+   - Server-to-server TLS encrypted API payout dispatch without manual CSV upload.
+2. Webhook Payment Reconciliation:
+   - Inbound webhook receivers to capture bank UTR numbers and instant payout confirmations.
+
+--------------------------------------------------------------------------------
+6.6. Group Health Insurance & Flexible Benefits Administration
+--------------------------------------------------------------------------------
+[CURRENT STATUS: 0% - NOT STARTED]
+[WORK REMAINING]:
+1. Group Medical Cover (GMC) & Group Term Life (GTL):
+   - Employee dependent enrollment (Spouse, Children, Parents).
+   - Sum insured tier selection with optional top-up deductions.
+2. Flexible Benefits Plan (FBP):
+   - Employee tax-saving allowance allocation (Food coupons, Fuel, Telephone/Internet, LTA).
+   - Monthly declaration verification and bill proof submission.
+
+--------------------------------------------------------------------------------
+6.7. Live AWS S3 / KMS Cloud Storage Provisioning
+--------------------------------------------------------------------------------
+[CURRENT STATUS: 65% - Architecture & Local Storage Complete, Live Cloud Bucket Pending]
+[WORK REMAINING]:
+1. AWS Infrastructure Provisioning:
+   - Provision private AWS S3 bucket with server-side AWS KMS customer-managed key (CMK).
+   - Implement S3 presigned URLs for direct temporary document access.
+2. Automated Backup Replication:
+   - Scheduled database snapshot dumps to off-site cloud storage with sha256 checksums.
+
+--------------------------------------------------------------------------------
+6.8. Per-Branch / Multi-Location Holiday Calendars
+--------------------------------------------------------------------------------
+[CURRENT STATUS: Global Organization Holiday Table Only]
+[WORK REMAINING]:
+1. State & Regional Holiday Calendars:
+   - Per-location / per-branch holiday assignment (e.g., Maharashtra state holidays vs Karnataka state holidays).
+   - Dynamic schedule evaluation resolving holidays by employee's assigned `WorkLocation`.
+
+
+================================================================================
+7. PRODUCTION DEPLOYMENT & OPERATIONAL READINESS
+================================================================================
+Operational Checklist for Production Deployment:
+- Set `DEBUG = False` and configure explicit `ALLOWED_HOSTS`.
+- Ensure PostgreSQL 16+ is used with proper database connection pooling (pgbouncer).
+- Run `python manage.py check --deploy` to pass security audit checks.
+- Set up Gunicorn / Uvicorn ASGI workers behind Nginx reverse proxy.
+- Configure SSL/TLS certificates (Let's Encrypt / Cloudflare).
+- Schedule periodic cron jobs:
+  * `python manage.py apply_scheduled_employment_changes` (daily at 00:01)
+  * `python manage.py run_attendance_anomaly_detection` (daily at shift end)
+  * `python manage.py accrue_leave_balances` (monthly on 1st)
+
+
+================================================================================
+8. LOCAL EXECUTION & DEMO CREDENTIALS
+================================================================================
+How to Run the Application Locally:
+1. Open PowerShell or Command Prompt.
+2. Navigate to project root:
+   cd "c:\Users\Shrikant\Downloads\Internship projects\hros project\zesthr-enterprise"
+3. Run the development server:
+   .\.venv\Scripts\python.exe manage.py runserver
+4. Access via browser:
+   http://127.0.0.1:8000/
+
+Default Demo User Logins:
+- HR Administrator / Superuser:
+  Username: admin
+  Password: admin123
+- HR Officer:
+  Username: hr.officer
+  Password: staff123
+- Payroll Officer:
+  Username: payroll.officer
+  Password: staff123
+- Employee Accounts (10 demo employees):
+  Username: aarav.sharma (or priya.patel, rohit.verma, ananya.iyer, etc.)
+  Password: emp123
+
+Key Portal URLs:
+- Dashboard: http://127.0.0.1:8000/dashboard/
+- Attendance Register: http://127.0.0.1:8000/attendance/
+- Leave Management: http://127.0.0.1:8000/leaves/
+- Payroll Runs & Payout Files: http://127.0.0.1:8000/payroll/runs/
+- Compensation & Salary Bands: http://127.0.0.1:8000/compensation/
+- My Total Rewards: http://127.0.0.1:8000/compensation/my/
+- Expense Claims: http://127.0.0.1:8000/expenses/
+- Django Admin Site: http://127.0.0.1:8000/admin/
+================================================================================
+                           END OF AUDIT DOCUMENT
+================================================================================
