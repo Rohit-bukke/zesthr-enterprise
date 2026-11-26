@@ -8,14 +8,32 @@ from apps.organizations.admin_base import TenantAdmin
 from . import roles
 from .services import accounts
 from .models import (AttendanceAudit, SecurityEvent, Attendance, Department, Employee, EmploymentType, Holiday, JobPosition, Salary, ScheduledEmploymentChange, WorkLocation,
-                     WorkSchedule, LeaveApplication, AttendanceCorrectionRequest)
+                     WorkSchedule, LeaveApplication, AttendanceCorrectionRequest, EmployeeBankAccount)
 from .services import leave as leave_service, corrections as corrections_service
+
+
+class EmployeeBankAccountInline(admin.StackedInline):
+    model = EmployeeBankAccount
+    extra = 0
+    can_delete = False
+    fields = ("bank_name", "branch_name", "account_holder_name", "account_number", "ifsc_code", "account_type", "payment_method", "upi_id", "is_verified", "verified_at", "verified_by")
+    readonly_fields = ("verified_at", "verified_by")
+
+    def has_view_permission(self, request, obj=None):
+        return request.user.has_perm(roles.VIEW_EMPLOYEE_PAY)
+
+    def has_change_permission(self, request, obj=None):
+        return request.user.has_perm(roles.CHANGE_EMPLOYEE_PAY)
+
+    def has_add_permission(self, request, obj=None):
+        return request.user.has_perm(roles.CHANGE_EMPLOYEE_PAY)
 
 
 @admin.register(Employee)
 class EmployeeAdmin(TenantAdmin):
     """The admin site must not be a back door around the role rules."""
 
+    inlines = [EmployeeBankAccountInline]
     list_display = ("employee_number", "name", "organization", "department", "position", "employment_status")
     list_filter = ("organization", "employment_status", "department")
     search_fields = ("name", "designation", "employee_number")
@@ -362,10 +380,10 @@ class LeaveBalanceAdjustmentAdmin(TenantAdmin):
         return False
 
 
-from .models import PayrollComponent, EmployeePayrollComponent, PayrollAdjustment, PayrollRun, PayrollEvent
+from .models import PayrollComponent, EmployeePayrollComponent, PayrollAdjustment, PayrollRun, PayrollEvent, OrganizationStatutoryConfig, EmployeeStatutoryProfile, EmployeeBankAccount
 
 
-@admin.register(PayrollComponent, EmployeePayrollComponent, PayrollAdjustment)
+@admin.register(PayrollComponent, EmployeePayrollComponent, PayrollAdjustment, OrganizationStatutoryConfig, EmployeeStatutoryProfile, EmployeeBankAccount)
 class PayrollConfigurationAdmin(TenantAdmin):
     def has_view_permission(self, request, obj=None):
         return request.user.has_perm(roles.VIEW_EMPLOYEE_PAY)
@@ -429,3 +447,47 @@ class PlatformGroupAdmin(GroupAdmin):
 
 from .admin_identity import register_platform_identity_admins  # noqa: E402
 register_platform_identity_admins()
+
+from .models_compensation import CompensationBand, SalaryRevision
+from .models_expenses import ExpenseCategory, ExpenseClaim
+
+
+@admin.register(CompensationBand)
+class CompensationBandAdmin(TenantAdmin):
+    list_display = ("code", "name", "department", "currency", "min_base_salary", "max_base_salary", "is_active")
+    list_filter = ("currency", "is_active", "department")
+    search_fields = ("code", "name")
+
+
+@admin.register(SalaryRevision)
+class SalaryRevisionAdmin(admin.ModelAdmin):
+    list_display = ("employee", "previous_salary", "revised_salary", "increment_percentage", "reason", "effective_date", "status")
+    list_filter = ("status", "reason", "effective_date")
+    search_fields = ("employee__name", "employee__employee_number")
+
+
+@admin.register(ExpenseCategory)
+class ExpenseCategoryAdmin(TenantAdmin):
+    list_display = ("code", "name", "requires_receipt", "max_amount_per_claim", "is_active")
+    list_filter = ("requires_receipt", "is_active")
+    search_fields = ("code", "name")
+
+
+@admin.register(ExpenseClaim)
+class ExpenseClaimAdmin(admin.ModelAdmin):
+    list_display = ("claim_number", "employee", "category", "title", "amount", "currency", "incurred_date", "status")
+    list_filter = ("status", "category", "incurred_date")
+    search_fields = ("claim_number", "employee__name", "title")
+
+
+from .models_onboarding import CandidateInvitation
+
+
+@admin.register(CandidateInvitation)
+class CandidateInvitationAdmin(TenantAdmin):
+    list_display = ("full_name", "email", "department", "position", "proposed_joining_date", "expires_at", "status")
+    list_filter = ("status", "department", "proposed_joining_date")
+    search_fields = ("first_name", "last_name", "email", "token")
+    readonly_fields = ("token", "created_at", "accepted_at")
+
+

@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}My Total Rewards | HROS{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>My Total Rewards Statement</h1>
+    <p>Comprehensive overview of your direct compensation, recurring benefits, employer contributions, and claims.</p>
+  </div>
+  <a class="btn ghost" href="{% url 'expenses_list' %}">My Expense Claims</a>
+</div>
+
+<!-- Highlight Metrics -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:16px;margin-bottom:20px;">
+  <div class="card" style="border-top:4px solid #0284c7;">
+    <span style="color:#64748b;font-size:0.85rem;text-transform:uppercase;font-weight:600;">Annual Base Salary</span>
+    <h2 style="margin:8px 0;font-size:1.75rem;">₹{{ rewards.annual_base }}</h2>
+    <small style="color:#64748b;">₹{{ rewards.monthly_base }} / month</small>
+  </div>
+  <div class="card" style="border-top:4px solid #10b981;">
+    <span style="color:#64748b;font-size:0.85rem;text-transform:uppercase;font-weight:600;">Annual Allowances</span>
+    <h2 style="margin:8px 0;font-size:1.75rem;">₹{{ rewards.annual_allowances }}</h2>
+    <small style="color:#64748b;">₹{{ rewards.monthly_allowances }} / month</small>
+  </div>
+  <div class="card" style="border-top:4px solid #8b5cf6;">
+    <span style="color:#64748b;font-size:0.85rem;text-transform:uppercase;font-weight:600;">Employer Benefits (PF &amp; ESI)</span>
+    <h2 style="margin:8px 0;font-size:1.75rem;">₹{{ rewards.annual_employer_benefits }}</h2>
+    <small style="color:#64748b;">₹{{ rewards.monthly_employer_benefits }} / month</small>
+  </div>
+  <div class="card" style="border-top:4px solid #f59e0b;background:#fefce8;">
+    <span style="color:#b45309;font-size:0.85rem;text-transform:uppercase;font-weight:700;">Total Cost to Company (CTC)</span>
+    <h2 style="margin:8px 0;font-size:1.75rem;color:#92400e;">₹{{ rewards.total_annual_ctc }}</h2>
+    <small style="color:#b45309;">₹{{ rewards.total_monthly_ctc }} / month</small>
+  </div>
+</div>
+
+<!-- Component Breakdown Table -->
+<section class="card">
+  <h2>Compensation Structure Breakdown</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Reward Component</th>
+          <th>Type</th>
+          <th>Monthly Value</th>
+          <th>Annual Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>Basic Salary</b></td>
+          <td>Direct Cash</td>
+          <td>₹{{ rewards.monthly_base }}</td>
+          <td>₹{{ rewards.annual_base }}</td>
+        </tr>
+        {% for comp in rewards.components %}
+        <tr>
+          <td>{{ comp.component.name }}</td>
+          <td>{{ comp.component.get_component_type_display }}</td>
+          <td>₹{{ comp.amount }}</td>
+          <td>₹{% widthratio comp.amount 1 12 %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4">No additional recurring allowances assigned.</td></tr>
+        {% endfor %}
+        <tr>
+          <td><b>Employer EPF Contribution</b> <br><small>Statutory Retirement Benefit (EPS + EPF)</small></td>
+          <td>Statutory Benefit</td>
+          <td>₹{{ rewards.statutory_breakdown.epf_employer_total }}</td>
+          <td>₹{% widthratio rewards.statutory_breakdown.epf_employer_total 1 12 %}</td>
+        </tr>
+        {% if rewards.statutory_breakdown.esi_eligible %}
+        <tr>
+          <td><b>Employer ESIC Contribution</b> <br><small>Statutory Health Benefit</small></td>
+          <td>Statutory Benefit</td>
+          <td>₹{{ rewards.statutory_breakdown.esi_employer }}</td>
+          <td>₹{% widthratio rewards.statutory_breakdown.esi_employer 1 12 %}</td>
+        </tr>
+        {% endif %}
+        <tr style="background:#f8fafc;font-weight:700;border-top:2px solid #e2e8f0;">
+          <td>Total Annual Cost to Company (CTC)</td>
+          <td>-</td>
+          <td>₹{{ rewards.total_monthly_ctc }}</td>
+          <td>₹{{ rewards.total_annual_ctc }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Salary Revisions History -->
+<section class="card">
+  <h2>Salary &amp; Increment History</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Effective Date</th>
+          <th>Reason</th>
+          <th>Previous Base</th>
+          <th>Revised Base</th>
+          <th>Increment</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rev in rewards.revisions %}
+        <tr>
+          <td><b>{{ rev.effective_date }}</b></td>
+          <td>{{ rev.get_reason_display }}</td>
+          <td>₹{{ rev.previous_salary }}</td>
+          <td><b>₹{{ rev.revised_salary }}</b></td>
+          <td><span class="badge" style="background:#dcfce7;color:#15803d;">+{{ rev.increment_percentage }}%</span></td>
+          <td>{{ rev.get_status_display }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6">No revision history on record.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

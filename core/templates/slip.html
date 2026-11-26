@@ -43,6 +43,17 @@
     <div><dt>Department</dt><dd>{{ s.emp.department.name|default:"General" }}</dd></div>
     <div><dt>Pay Period</dt><dd>{{ month_name }} {{ s.year }}</dd></div>
     <div><dt>Generated On</dt><dd>{{ s.generated_on|date:"j M Y, H:i" }}</dd></div>
+    {% if s.calculation_snapshot.bank_details and s.calculation_snapshot.bank_details.bank_name %}
+    <div><dt>Bank Name</dt><dd>{{ s.calculation_snapshot.bank_details.bank_name }}</dd></div>
+    <div><dt>Bank Account</dt><dd>{{ s.calculation_snapshot.bank_details.account_number }}</dd></div>
+    <div><dt>IFSC Code</dt><dd>{{ s.calculation_snapshot.bank_details.ifsc_code }}</dd></div>
+    <div><dt>Disbursement Mode</dt><dd>{{ s.calculation_snapshot.bank_details.payment_method }}</dd></div>
+    {% elif s.emp.bank_account %}
+    <div><dt>Bank Name</dt><dd>{{ s.emp.bank_account.bank_name }}</dd></div>
+    <div><dt>Bank Account</dt><dd>{{ s.emp.bank_account.masked_account_number }}</dd></div>
+    <div><dt>IFSC Code</dt><dd>{{ s.emp.bank_account.ifsc_code }}</dd></div>
+    <div><dt>Disbursement Mode</dt><dd>{{ s.emp.bank_account.payment_method }}</dd></div>
+    {% endif %}
   </dl>
   <h3>Attendance Summary</h3>
   <table>
@@ -74,16 +85,41 @@
       <tr><td>Gross Salary</td><td class="r"><b>{{ currency }} {{ s.gross|floatformat:2 }}</b></td></tr>
       <tr><td>Per-Day Pay Calculation Rate</td><td class="r">{{ currency }} {{ s.per_day_pay|floatformat:2 }}</td></tr>
       {% if s.absent_days %}
-      <tr><td>Absent Days Deductions ({{ s.absent_days }} days)</td><td class="r" style="color:var(--bad);">- {{ currency }} {{ s.deduction|floatformat:2 }}</td></tr>
-      {% else %}
-      <tr><td>Total Deductions</td><td class="r">- {{ currency }} {{ s.deduction|floatformat:2 }}</td></tr>
+      <tr><td>Absent Days Deductions ({{ s.absent_days }} days)</td><td class="r" style="color:var(--bad);">- {{ currency }} {{ s.calculation_snapshot.absence_deduction|default:s.deduction|floatformat:2 }}</td></tr>
       {% endif %}
+      <tr><td>Total Deductions</td><td class="r" style="color:var(--bad);">- {{ currency }} {{ s.deduction|floatformat:2 }}</td></tr>
       <tr class="total">
         <td><b>Net Payable Salary</b></td>
         <td class="r"><b>{{ currency }} {{ s.net|floatformat:2 }}</b></td>
       </tr>
     </tbody>
   </table>
+  {% if s.calculation_snapshot.statutory_details and s.calculation_snapshot.employer_contributions and s.calculation_snapshot.employer_contributions != "0.00" %}
+  <h3>Employer Statutory Contributions (CTC)</h3>
+  <table>
+    <thead>
+      <tr><th>Contribution</th><th class="r">Amount</th></tr>
+    </thead>
+    <tbody>
+      {% if s.calculation_snapshot.statutory_details.epf_employer_total and s.calculation_snapshot.statutory_details.epf_employer_total != "0.00" %}
+      <tr>
+        <td>EPF Employer Share (EPS: {{ currency }} {{ s.calculation_snapshot.statutory_details.epf_employer_eps|floatformat:2 }} + EPF: {{ currency }} {{ s.calculation_snapshot.statutory_details.epf_employer_epf|floatformat:2 }})</td>
+        <td class="r">{{ currency }} {{ s.calculation_snapshot.statutory_details.epf_employer_total|floatformat:2 }}</td>
+      </tr>
+      {% endif %}
+      {% if s.calculation_snapshot.statutory_details.esi_employer and s.calculation_snapshot.statutory_details.esi_employer != "0.00" %}
+      <tr>
+        <td>ESIC Employer Share (3.25%)</td>
+        <td class="r">{{ currency }} {{ s.calculation_snapshot.statutory_details.esi_employer|floatformat:2 }}</td>
+      </tr>
+      {% endif %}
+      <tr class="total">
+        <td><b>Total Employer Contribution</b></td>
+        <td class="r"><b>{{ currency }} {{ s.calculation_snapshot.employer_contributions|floatformat:2 }}</b></td>
+      </tr>
+    </tbody>
+  </table>
+  {% endif %}
   <footer>This is a system-generated salary slip from HRMS Portal. No signature required.</footer>
 </article>
 {% endblock %}

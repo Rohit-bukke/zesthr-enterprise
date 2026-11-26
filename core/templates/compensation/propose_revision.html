@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Propose Salary Revision | HROS{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Propose Salary Revision</h1>
+    <p>Submit an effective-dated salary increment or adjustment proposal for an employee.</p>
+  </div>
+  <a class="btn ghost" href="{% url 'compensation_dashboard' %}">&larr; Back to Dashboard</a>
+</div>
+
+<section class="card" style="max-width:640px;">
+  <form method="post">
+    {% csrf_token %}
+    <p>
+      <label for="employee_id"><strong>Select Employee</strong></label>
+      <select id="employee_id" name="employee_id" required style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+        <option value="">-- Choose Employee --</option>
+        {% for emp in employees %}
+        <option value="{{ emp.pk }}">{{ emp.name }} ({{ emp.designation }} - Current: ₹{{ emp.basic_salary }})</option>
+        {% endfor %}
+      </select>
+    </p>
+
+    <p>
+      <label for="revised_salary"><strong>Revised Base Salary (Monthly)</strong></label>
+      <input type="number" step="0.01" min="1" id="revised_salary" name="revised_salary" required placeholder="e.g. 65000.00" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+    </p>
+
+    <p>
+      <label for="reason"><strong>Revision Reason</strong></label>
+      <select id="reason" name="reason" required style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+        {% for code, label in reasons %}
+        <option value="{{ code }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </p>
+
+    <p>
+      <label for="effective_date"><strong>Effective Date</strong></label>
+      <input type="date" id="effective_date" name="effective_date" value="{{ today|date:'Y-m-d' }}" required style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+      <small style="color:#64748b;">The revised salary will automatically apply to payroll from this date onwards.</small>
+    </p>
+
+    <p>
+      <label for="review_notes"><strong>Notes / Justification</strong></label>
+      <textarea id="review_notes" name="review_notes" rows="3" placeholder="Performance review notes, appraisal grade, promotion details..." style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;"></textarea>
+    </p>
+
+    <div style="display:flex;gap:12px;margin-top:16px;">
+      <button type="submit" class="btn">Submit Proposal</button>
+      <a class="btn ghost" href="{% url 'compensation_dashboard' %}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

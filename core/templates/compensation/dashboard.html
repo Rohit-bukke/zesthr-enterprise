@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Compensation & Salary Bands | HROS{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Compensation &amp; Salary Bands</h1>
+    <p>Administer organizational salary grades, compensation bands, and review employee increment proposals.</p>
+  </div>
+  {% if can_change %}
+  <a class="btn" href="{% url 'salary_revision_propose' %}">+ Propose Salary Revision</a>
+  {% endif %}
+</div>
+
+<!-- Pending Revisions Queue -->
+<section class="card">
+  <h2>Pending Salary Revision Proposals</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Employee</th>
+          <th>Previous Salary</th>
+          <th>Revised Salary</th>
+          <th>Increment</th>
+          <th>Reason</th>
+          <th>Effective Date</th>
+          <th>Proposed By</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rev in pending_revisions %}
+        <tr>
+          <td><b>{{ rev.employee.name }}</b> <br><small>{{ rev.employee.designation }}</small></td>
+          <td>{{ rev.previous_salary }}</td>
+          <td><b>{{ rev.revised_salary }}</b></td>
+          <td><span class="badge" style="background:#e0f2fe;color:#0369a1;">+{{ rev.increment_percentage }}%</span></td>
+          <td>{{ rev.get_reason_display }}</td>
+          <td>{{ rev.effective_date }}</td>
+          <td>{{ rev.proposed_by.username|default:"System" }}</td>
+          <td>
+            {% if can_change %}
+            <form method="post" action="{% url 'salary_revision_action' rev.pk %}" style="display:inline-flex;gap:6px;">
+              {% csrf_token %}
+              <button class="btn" name="action" value="approve" onclick="return confirm('Approve this salary revision?');" style="padding:4px 8px;font-size:0.85rem;">Approve</button>
+              <button class="btn ghost danger" name="action" value="reject" onclick="return confirm('Reject this proposal?');" style="padding:4px 8px;font-size:0.85rem;">Reject</button>
+            </form>
+            {% else %}
+            <span>Review only</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8">No pending salary revision proposals.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Standard Compensation Bands -->
+<section class="card">
+  <h2>Organizational Salary Bands</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Band Code</th>
+          <th>Level / Name</th>
+          <th>Department</th>
+          <th>Minimum Base</th>
+          <th>Maximum Base</th>
+          <th>Currency</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for band in bands %}
+        <tr>
+          <td><code>{{ band.code }}</code></td>
+          <td><b>{{ band.name }}</b></td>
+          <td>{{ band.department.name|default:"Organization-wide" }}</td>
+          <td>{{ band.currency }} {{ band.min_base_salary }}</td>
+          <td>{{ band.currency }} {{ band.max_base_salary }}</td>
+          <td>{{ band.currency }}</td>
+          <td>{% if band.is_active %}<span class="badge" style="background:#dcfce7;color:#15803d;">Active</span>{% else %}<span class="badge">Inactive</span>{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7">No compensation bands configured.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Recent Revision History -->
+<section class="card">
+  <h2>Recent Revision Decisions</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Employee</th>
+          <th>Salary Change</th>
+          <th>Reason</th>
+          <th>Effective Date</th>
+          <th>Status</th>
+          <th>Reviewed By</th>
+          <th>Decided On</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rev in recent_revisions %}
+        <tr>
+          <td>{{ rev.employee.name }}</td>
+          <td>{{ rev.previous_salary }} &rarr; <b>{{ rev.revised_salary }}</b> (+{{ rev.increment_percentage }}%)</td>
+          <td>{{ rev.get_reason_display }}</td>
+          <td>{{ rev.effective_date }}</td>
+          <td>
+            {% if rev.status == "APPLIED" %}
+            <span class="badge" style="background:#dcfce7;color:#15803d;">Applied</span>
+            {% elif rev.status == "APPROVED" %}
+            <span class="badge" style="background:#e0e7ff;color:#4338ca;">Approved</span>
+            {% else %}
+            <span class="badge" style="background:#fee2e2;color:#b91c1c;">Rejected</span>
+            {% endif %}
+          </td>
+          <td>{{ rev.reviewed_by.username|default:"-" }}</td>
+          <td>{{ rev.decided_at|date:"d M Y"|default:"-" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7">No recent revision history.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

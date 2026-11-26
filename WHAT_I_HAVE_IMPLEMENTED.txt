@@ -1,0 +1,341 @@
+================================================================================
+                    ZESTHR-ENTERPRISE (HROS PLATFORM)
+              DOCUMENTATION OF FEATURES & CODE IMPLEMENTED BY ME
+================================================================================
+Author: Shrikant Hundekar
+Repository: https://github.com/ShrikantHundekar/zesthr-enterprise.git
+Branch: feature/reward-payroll-compensation
+Commits Delivered:
+  1. a6f4df9 - feat(payroll): Phase 1 - statutory deduction engine & configuration
+  2. b9a4d09 - feat(payroll): Phase 2 - calculation snapshot & payslip CTC integration
+  3. 2081963 - feat(payroll): Phase 3 - employee bank accounts & IFSC validation
+  4. db230a2 - feat(payroll): Phase 4 - bank payout generators (Standard, HDFC, ICICI)
+  5. 1d13ba1 - fix(payroll): resolve errors and UI gaps across all statutory phases
+  6. 1bd364f - feat(reward): compensation bands, salary revisions & expense claims
+================================================================================
+
+TABLE OF CONTENTS:
+--------------------------------------------------------------------------------
+ 1. OVERVIEW OF CONTRIBUTIONS
+ 2. STATUTORY PAYROLL COMPLIANCE ENGINE (EPF, ESIC, PT, TDS)
+ 3. EMPLOYEE BANKING DETAILS & VERIFICATION WORKFLOW
+ 4. CORPORATE BANK PAYOUT FILE GENERATORS (STANDARD, HDFC, ICICI)
+ 5. COMPENSATION BANDS & SALARY REVISION ENGINE
+ 6. EMPLOYEE EXPENSE CLAIMS & NON-TAXABLE PAYROLL REIMBURSEMENT
+ 7. SELF-SERVICE TOTAL REWARDS & UI DASHBOARDS
+ 8. DATABASE SCHEMA & MIGRATIONS CREATED
+ 9. SEED DATA & DEMO PROVISIONING
+ 10. AUTOMATED TEST SUITE & VERIFICATION (31 TESTS - 100% PASS)
+ 11. COMPLETE LIST OF FILES CREATED & MODIFIED
+================================================================================
+
+
+================================================================================
+1. OVERVIEW OF CONTRIBUTIONS
+================================================================================
+In this project, I took the platform from a basic salary computation mechanism 
+(which only supported simple leave-without-pay deductions) to an enterprise-grade, 
+statutorily compliant, bank-integrated **Reward: Payroll & Compensation** engine.
+
+Key Accomplishments:
+- Implemented Indian statutory compliance formulas (EPF, ESIC, Professional Tax, TDS).
+- Built secure banking profile models with IFSC validation and account number masking.
+- Created corporate payout instruction file generators for HDFC, ICICI, and Standard NEFT/RTGS.
+- Implemented organizational salary bands and effective-dated salary revision proposals.
+- Built an end-to-end expense reimbursement workflow integrated into payroll disbursements.
+- Developed self-service Total Rewards statements and managerial review dashboards.
+- Authored 31 automated unit and integration tests with a 100% pass rate.
+
+
+================================================================================
+2. STATUTORY PAYROLL COMPLIANCE ENGINE (EPF, ESIC, PT, TDS)
+================================================================================
+Files Created:
+- `core/models_statutory.py`
+- `core/services/statutory.py`
+- `core/tests/test_statutory.py`
+- `core/tests/test_payroll_statutory_integration.py`
+
+Key Capabilities Delivered:
+1. Organization Statutory Settings (`OrganizationStatutoryConfig`):
+   - Toggle compliance independently per organization (EPF, ESIC, PT).
+   - Configurable EPF wage ceiling (₹15,000 standard limit) and contribution rates.
+   - Configurable ESIC gross wage threshold (₹21,000 standard limit).
+   - Configurable default state for Professional Tax.
+
+2. Employee Statutory Profile (`EmployeeStatutoryProfile`):
+   - PAN validation via regex: `^[A-Z]{5}[0-9]{4}[A-Z]$`.
+   - UAN validation via regex: `^[0-9]{12}$`.
+   - ESIC Insurance Number (IP) validation via regex: `^[0-9]{10,17}$`.
+   - Voluntary Provident Fund (VPF) and custom TDS withholding amounts.
+
+3. Mathematical Deduction Engine (`calculate_statutory_deductions()`):
+   - Employee Provident Fund (EPF):
+     * Employee contribution: 12% on basic wage capped at ₹15,000.
+     * Employer contribution: 12% split into 3.67% (EPF) + 8.33% (EPS, capped at ₹1,250) + 0.5% (EDLI).
+   - Employee State Insurance (ESIC):
+     * Employee contribution: 0.75% of gross wages (when gross <= ₹21,000).
+     * Employer contribution: 3.25% of gross wages.
+   - Professional Tax (PT):
+     * Multi-state slab calculation for Maharashtra, Karnataka, Telangana, Tamil Nadu, and West Bengal.
+     * Special handling for Maharashtra February spike (₹300 instead of ₹200).
+   - TDS Withholding: Applied directly to monthly deductions.
+   - Full Cost to Company (CTC) derivation: Sums gross pay + employer EPF/EPS/EDLI + employer ESIC.
+
+
+================================================================================
+3. EMPLOYEE BANKING DETAILS & VERIFICATION WORKFLOW
+================================================================================
+Files Created:
+- `core/models_banking.py`
+- `core/tests/test_banking.py`
+
+Key Capabilities Delivered:
+1. Employee Bank Account Model (`EmployeeBankAccount`):
+   - Beneficiary account holder name, bank name, account number, IFSC code.
+   - Payment method choices: NEFT, RTGS, IMPS.
+   - Regex validation for Indian Financial System Codes (IFSC): `^[A-Z]{4}0[A-Z0-9]{6}$`.
+2. Privacy & Security Masking:
+   - Automated property `masked_account_number`: returns `••••••••1234` (preserving only the last 4 digits).
+3. Verification & Safety:
+   - Dedicated `is_verified` boolean flag and `mark_verified(verified_by)` method.
+   - Prevents corporate salary disbursement to unverified or improperly formatted bank accounts.
+4. Django Admin Integration:
+   - Registered `EmployeeBankAccountInline` directly inside `EmployeeAdmin`.
+
+
+================================================================================
+4. CORPORATE BANK PAYOUT FILE GENERATORS (STANDARD, HDFC, ICICI)
+================================================================================
+Files Created:
+- `core/services/bank_payout.py`
+- `core/tests/test_bank_payout.py`
+
+Files Modified:
+- `core/views_payroll.py`
+- `core/urls.py`
+- `core/templates/payroll_run_detail.html`
+
+Key Capabilities Delivered:
+1. Payout File Generation Service (`generate_payout_file()`):
+   - **Standard NEFT/RTGS Batch CSV**:
+     * Header: `Beneficiary Name,Account Number,IFSC Code,Amount,Payment Reference,Month,Year`
+     * Includes all active employees with verified bank accounts.
+   - **HDFC Bank CMS / E-Net Bulk Salary Format**:
+     * Header: `Transaction Type,Beneficiary Code,Beneficiary Account Number,Transaction Amount,Beneficiary Name,Payment Details,Debit Account Number,IFSC Code,Beneficiary Email`
+   - **ICICI Bank Corporate Internet Banking (CIB) Bulk Format**:
+     * Header: `Payment Mode,Debit Account No,Beneficiary Account No,Beneficiary Name,Amount,Currency,Txn Date,Remarks,IFSC Code`
+2. Security & Compliance Protections:
+   - CSV formula injection protection: Applied `safe_cell()` to sanitize dangerous leading characters (`=`, `+`, `-`, `@`).
+   - Audit Trail: Emits an immutable `PAYOUT_EXPORTED` event in `PayrollEvent` recording format, record count, and total disbursed amount.
+3. User Interface:
+   - Added direct download action buttons inside `payroll_run_detail.html` for finalized runs.
+
+
+================================================================================
+5. COMPENSATION BANDS & SALARY REVISION ENGINE
+================================================================================
+Files Created:
+- `core/models_compensation.py`
+- `core/services/compensation.py`
+- `core/views_compensation.py`
+- `core/templates/compensation/dashboard.html`
+- `core/templates/compensation/propose_revision.html`
+- `core/tests/test_compensation.py`
+
+Key Capabilities Delivered:
+1. Compensation Bands (`CompensationBand`):
+   - Defined structured organizational pay grades (e.g. BAND-L1 to BAND-L4).
+   - Enforced database constraints: minimum salary >= 0, maximum salary >= minimum salary.
+2. Salary Revision Proposals (`SalaryRevision`):
+   - Effective-dated increment tracking for Annual Appraisals, Promotions, Market Corrections, Probation Pass, and Retention.
+   - Automated calculation of increment percentage based on prior basic salary.
+   - Review and approval workflow: `PROPOSED` -> `APPROVED` / `REJECTED` -> `APPLIED`.
+3. Auto-Application & Audit:
+   - Approving an effective revision automatically updates `Employee.basic_salary`.
+   - Records an immutable, sensitive pay change in `EmploymentHistory`.
+   - Batch runner `apply_pending_effective_revisions()` to apply future-dated scheduled increments on their effective dates.
+
+
+================================================================================
+6. EMPLOYEE EXPENSE CLAIMS & NON-TAXABLE PAYROLL REIMBURSEMENT
+================================================================================
+Files Created:
+- `core/models_expenses.py`
+- `core/services/expenses.py`
+- `core/templates/compensation/expenses.html`
+- `core/templates/compensation/expense_submit.html`
+- `core/tests/test_expenses.py`
+
+Files Modified:
+- `core/services/payroll.py`
+
+Key Capabilities Delivered:
+1. Expense Categories (`ExpenseCategory`):
+   - Travel & Conveyance, Meals & Entertainment, Remote Office Equipment, Training & Certifications.
+   - Category-level maximum limits and mandatory receipt attachment validation.
+2. Employee Claim Workflow (`ExpenseClaim`):
+   - Unique tracking numbers (`EXP-XXXXXXXX`).
+   - Receipt file upload supporting PDF, PNG, and JPEG documents.
+   - Manager review queue with one-click Approve / Reject decisions.
+3. Payroll Reimbursement Integration:
+   - Updated `PayrollCalculation` to calculate approved unpaid claims.
+   - Added as non-taxable reimbursements directly to employee net pay:
+     $$\text{Net Pay} = (\text{Gross Pay} - \text{Total Deductions}) + \text{Expense Reimbursements}$$
+   - Finalizing a payroll run links the claims to the `PayrollRun` and marks them `PAID`.
+   - Reversing a payroll run automatically restores claims back to `APPROVED`.
+
+
+================================================================================
+7. SELF-SERVICE TOTAL REWARDS & UI DASHBOARDS
+================================================================================
+Files Created:
+- `core/templates/compensation/my_rewards.html`
+
+Files Modified:
+- `core/templates/base.html`
+- `core/templates/payroll.html`
+- `core/templates/report.html`
+- `core/templates/slip.html`
+- `core/templates/payroll_run_detail.html`
+
+Key Capabilities Delivered:
+1. Employee Total Rewards Statement (`my_rewards.html`):
+   - High-level metric cards: Annual Base, Annual Allowances, Annual Employer Statutory Benefits, and Total Annual CTC.
+   - Detailed component breakdown table comparing monthly vs annual values.
+   - Visual timeline of historical salary revisions and increment percentages.
+2. Salary Register & Report Table Updates:
+   - Separated deductions into distinct columns: `Absent Ded.` (LWP), `Statutory Ded.` (PF+ESI+PT+TDS), and `Total Deductions`.
+3. Payslip Breakdown (`slip.html`):
+   - Added dedicated Statutory Deductions section.
+   - Added dedicated Employer Contributions (CTC) section.
+   - Displayed employee disbursing bank details with masked account numbers.
+4. Navigation:
+   - Added dedicated **Reward & Compensation** section to the primary sidebar in `base.html`.
+
+
+================================================================================
+8. DATABASE SCHEMA & MIGRATIONS CREATED
+================================================================================
+Three migrations were generated and successfully applied:
+1. `core/migrations/0036_employeestatutoryprofile_organizationstatutoryconfig.py`:
+   - Created tables: `organization_statutory_config` and `employee_statutory_profile`.
+2. `core/migrations/0037_employeebankaccount.py`:
+   - Created table: `employee_bank_account`.
+3. `core/migrations/0038_expensecategory_expenseclaim_salaryrevision_and_more.py`:
+   - Created tables: `compensation_band`, `salary_revision`, `expense_category`, and `expense_claim`.
+
+
+================================================================================
+9. SEED DATA & DEMO PROVISIONING
+================================================================================
+Files Modified:
+- `core/management/commands/seed_demo.py`
+
+Key Capabilities Delivered:
+- Populated default `OrganizationStatutoryConfig` for Acme Corp (EPF enabled, ESIC enabled, Maharashtra PT).
+- Provisioned unique PAN, UAN, ESIC IP, and tax withholding profiles for all 10 demo employees.
+- Created verified `EmployeeBankAccount` records with valid Indian IFSC codes and mock account numbers.
+- Seeded 4 Compensation Bands (`BAND-L1` to `BAND-L4`).
+- Seeded 3 Salary Revisions (Approved past revision for Aarav Sharma; pending promotion for Priya Patel; pending retention for Rohit Verma).
+- Seeded 4 Expense Categories and sample approved & pending expense claims.
+
+
+================================================================================
+10. AUTOMATED TEST SUITE & VERIFICATION (31 TESTS - 100% PASS)
+================================================================================
+Test Execution Command:
+`python manage.py test core.tests.test_compensation core.tests.test_expenses core.tests.test_statutory core.tests.test_payroll_statutory_integration core.tests.test_banking core.tests.test_bank_payout`
+
+Result: `Ran 31 tests in 13.012s - OK`
+
+Test Breakdown:
+- `core/tests/test_compensation.py` (5 tests):
+  * `test_compensation_band_creation_and_validation`
+  * `test_propose_and_approve_salary_revision`
+  * `test_reject_salary_revision`
+  * `test_future_dated_revision_applied_on_schedule`
+  * `test_total_rewards_calculation`
+- `core/tests/test_expenses.py` (4 tests):
+  * `test_submit_and_approve_expense_claim`
+  * `test_reject_expense_claim`
+  * `test_claim_amount_exceeding_category_limit_fails`
+  * `test_expense_reimbursement_in_payroll_calculation`
+- `core/tests/test_statutory.py` (8 tests):
+  * `test_epf_calculation_within_ceiling`
+  * `test_epf_calculation_exceeding_ceiling`
+  * `test_esic_calculation_eligible`
+  * `test_esic_calculation_ineligible_above_threshold`
+  * `test_professional_tax_maharashtra_regular`
+  * `test_professional_tax_maharashtra_february`
+  * `test_professional_tax_karnataka`
+  * `test_pan_and_uan_validation`
+- `core/tests/test_payroll_statutory_integration.py` (3 tests):
+  * `test_payroll_calculation_incorporates_statutory_deductions`
+  * `test_payroll_snapshot_stores_statutory_details`
+  * `test_statutory_disabled_organization_results_in_zero_deductions`
+- `core/tests/test_banking.py` (6 tests):
+  * `test_bank_account_creation_and_ifsc_validation`
+  * `test_invalid_ifsc_code_raises_validation_error`
+  * `test_masked_account_number`
+  * `test_mark_verified`
+  * `test_one_bank_account_per_employee`
+  * `test_bank_account_foreign_key_protection`
+- `core/tests/test_bank_payout.py` (5 tests):
+  * `test_standard_payout_file_generation`
+  * `test_hdfc_cms_payout_file_generation`
+  * `test_icici_cib_payout_file_generation`
+  * `test_unfinalized_run_payout_export_blocked`
+  * `test_csv_injection_prevention_safe_cell`
+
+
+================================================================================
+11. COMPLETE LIST OF FILES CREATED & MODIFIED
+================================================================================
+
+A. NEW PYTHON MODULES CREATED:
+1. `core/models_statutory.py` - Statutory compliance models (EPF, ESIC, PT, TDS)
+2. `core/models_banking.py` - Employee bank account models with IFSC validation & masking
+3. `core/models_compensation.py` - Compensation bands and salary revision models
+4. `core/models_expenses.py` - Expense categories and reimbursement claim models
+5. `core/services/statutory.py` - Statutory deduction calculation algorithms
+6. `core/services/bank_payout.py` - Corporate bank payout file generators (Standard, HDFC, ICICI)
+7. `core/services/compensation.py` - Salary revision approval & Total Rewards services
+8. `core/services/expenses.py` - Expense claim submission, approval, and reimbursement services
+9. `core/views_compensation.py` - Web controllers for compensation, revisions, and claims
+
+B. NEW AUTOMATED TEST FILES CREATED:
+10. `core/tests/test_statutory.py` - 8 unit tests for statutory rules
+11. `core/tests/test_payroll_statutory_integration.py` - 3 integration tests for payroll math
+12. `core/tests/test_banking.py` - 6 unit tests for bank account validation
+13. `core/tests/test_bank_payout.py` - 5 unit tests for bank CSV exports
+14. `core/tests/test_compensation.py` - 5 unit tests for compensation bands & revisions
+15. `core/tests/test_expenses.py` - 4 unit tests for expense claims & payroll reimbursements
+
+C. NEW HTML TEMPLATES CREATED:
+16. `core/templates/compensation/dashboard.html` - Admin compensation & revision review page
+17. `core/templates/compensation/my_rewards.html` - Employee self-service Total Rewards statement
+18. `core/templates/compensation/propose_revision.html` - Increment proposal submission form
+19. `core/templates/compensation/expenses.html` - Expense claims list & manager review queue
+20. `core/templates/compensation/expense_submit.html` - Expense reimbursement claim filing form
+
+D. NEW DATABASE MIGRATIONS GENERATED:
+21. `core/migrations/0036_employeestatutoryprofile_organizationstatutoryconfig.py`
+22. `core/migrations/0037_employeebankaccount.py`
+23. `core/migrations/0038_expensecategory_expenseclaim_salaryrevision_and_more.py`
+
+E. EXISTING CODEBASE FILES MODIFIED & EXTENDED:
+24. `core/models.py` - Registered new models into Django app registry
+25. `core/admin.py` - Registered admin models & inlines for statutory, bank, comp, and expenses
+26. `core/services/payroll.py` - Integrated statutory deductions, employer CTC, & expense reimbursements
+27. `core/views_payroll.py` - Implemented payout file export controller & audit logger
+28. `core/urls.py` - Configured routes for payout downloads, compensation, and expense claims
+29. `core/templates/payroll_run_detail.html` - Added corporate payout download action card
+30. `core/templates/payroll.html` - Added breakdown columns for absent ded vs statutory ded
+31. `core/templates/report.html` - Added statutory breakdown columns to monthly report
+32. `core/templates/slip.html` - Added itemized statutory deductions, employer CTC, & masked bank info
+33. `core/templates/base.html` - Added dedicated Reward & Compensation navigation menu
+34. `core/management/commands/seed_demo.py` - Seeded demo statutory, banking, comp, and expense records
+================================================================================
+                        END OF IMPLEMENTATION DOCUMENT
+================================================================================

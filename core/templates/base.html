@@ -100,13 +100,18 @@
       <a class="{% if n == 'holidays' %}on{% endif %}" href="{% url 'holidays' %}">Holiday Calendar</a>
     </details>
 
-    <!-- PAYROLL -->
-    <details {% if 'payroll' in n or n == 'slip' or n == 'report' %}open{% endif %}><summary>Payroll</summary>
-      {% if perms.core.view_payroll_report %}
+    <!-- REWARD & COMPENSATION -->
+    <details {% if 'payroll' in n or n == 'slip' or n == 'report' or 'compensation' in n or 'expense' in n %}open{% endif %}><summary>Reward &amp; Compensation</summary>
+      {% if perms.core.view_payroll_report or perms.core.view_employee_pay %}
         <a class="{% if n == 'payroll' %}on{% endif %}" href="{% url 'payroll' %}">Monthly Salary Records</a>
         <a class="{% if n == 'payroll_runs' or n == 'payroll_run_detail' %}on{% endif %}" href="{% url 'payroll_runs' %}">Payroll Runs</a>
+        <a class="{% if n == 'compensation_dashboard' or n == 'salary_revision_propose' %}on{% endif %}" href="{% url 'compensation_dashboard' %}">Compensation &amp; Bands</a>
+        <a class="{% if n == 'expenses_list' or n == 'expense_submit' %}on{% endif %}" href="{% url 'expenses_list' %}">Expense Claims</a>
         <a class="{% if n == 'report' %}on{% endif %}" href="{% url 'report' %}">Salary &amp; Attendance Report</a>
-      {% elif user.employee_profile %}
+      {% endif %}
+      <a class="{% if n == 'my_compensation' %}on{% endif %}" href="{% url 'my_compensation' %}">&#10024; My Total Rewards</a>
+      {% if user.employee_profile %}
+        <a class="{% if n == 'expenses_list' and not perms.core.view_payroll_report %}on{% endif %}" href="{% url 'expenses_list' %}">My Expenses</a>
         <a class="{% if n == 'slip' %}on{% endif %}" href="{% url 'dashboard' %}">My Payslips</a>
       {% endif %}
     </details>

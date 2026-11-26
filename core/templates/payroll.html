@@ -29,8 +29,9 @@
         <tr>
           <th>Employee</th>
           <th>Gross Salary</th>
-          <th>Absent Days</th>
-          <th>Deductions</th>
+          <th>Absent Ded.</th>
+          <th>Statutory Ded.</th>
+          <th>Total Deductions</th>
           {% if any_overtime %}<th>Overtime Pay</th>{% endif %}
           <th>Net Payout</th>
           <th>Actions</th>
@@ -44,8 +45,9 @@
             <div class="muted">{{ s.emp.designation }}{% if s.emp.department %} &bull; {{ s.emp.department.name }}{% endif %}</div>
           </td>
           <td>₹{{ s.gross|floatformat:2 }}</td>
-          <td>{{ s.absent_days }}</td>
-          <td style="color:var(--bad);">- ₹{{ s.deduction|floatformat:2 }}</td>
+          <td>{% if s.calculation_snapshot.absence_deduction and s.calculation_snapshot.absence_deduction != "0.00" %}- ₹{{ s.calculation_snapshot.absence_deduction|floatformat:2 }} <small class="muted">({{ s.absent_days }}d)</small>{% else %}—{% endif %}</td>
+          <td style="color:var(--bad);">{% if s.calculation_snapshot.statutory_deductions and s.calculation_snapshot.statutory_deductions != "0.00" %}- ₹{{ s.calculation_snapshot.statutory_deductions|floatformat:2 }}{% else %}—{% endif %}</td>
+          <td style="color:var(--bad);"><b>- ₹{{ s.deduction|floatformat:2 }}</b></td>
           {% if any_overtime %}
           <td style="color:var(--ok);">{% if s.overtime_pay %}+ ₹{{ s.overtime_pay|floatformat:2 }}{% else %}—{% endif %}</td>
           {% endif %}
