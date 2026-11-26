@@ -1,15 +1,20 @@
 from datetime import timedelta
+from decimal import Decimal
 from django.contrib import messages
+from django.contrib.auth import get_user_model, login
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.organizations.models import OrganizationMembership
 from apps.organizations.tenancy import scope_queryset
 from core import roles
-from core.forms_onboarding import CandidateInvitationForm
+from core.forms_onboarding import CandidateInvitationForm, CandidateRegistrationForm
+from core.models import Employee
 from core.models_onboarding import CandidateInvitation
 
 
@@ -147,17 +152,134 @@ def invitation_action(request, pk):
     return redirect("onboarding_invitations")
 
 
-def candidate_landing_stub(request, token):
+def candidate_landing(request, token):
     """
-    Candidate landing stub route for token link preview (full wizard arrives in Phase 3).
+    Public token-verification and candidate initial account setup view.
+    Validates token validity, expiration, and organization status.
+    Allows candidate to accept invite and create their user account credentials.
     """
-    invitation = get_object_or_404(CandidateInvitation, token=token)
+    try:
+        invitation = CandidateInvitation.objects.select_related(
+            "organization", "department", "position"
+        ).get(token=token)
+    except (CandidateInvitation.DoesNotExist, ValueError):
+        return render(
+            request,
+            "onboarding/candidate_landing.html",
+            {
+                "invitation_valid": False,
+                "error_message": "This invitation link is invalid or does not exist.",
+            },
+            status=404,
+        )
+
+    # Check if organization is active
+    if not invitation.organization.is_active:
+        return render(
+            request,
+            "onboarding/candidate_landing.html",
+            {
+                "invitation": invitation,
+                "invitation_valid": False,
+                "error_message": "The organization associated with this invitation is currently inactive.",
+            },
+            status=403,
+        )
+
+    # Check if already accepted
+    if invitation.status == CandidateInvitation.STATUS_ACCEPTED:
+        return render(
+            request,
+            "onboarding/candidate_landing.html",
+            {
+                "invitation": invitation,
+                "invitation_valid": False,
+                "error_message": "This invitation has already been accepted. Please sign in with your credentials.",
+            },
+        )
+
+    # Check validity (revoked or expired)
+    if not invitation.is_valid():
+        error_msg = "This invitation has been revoked." if invitation.status == CandidateInvitation.STATUS_REVOKED else "This invitation has expired. Please contact your HR team for a new link."
+        return render(
+            request,
+            "onboarding/candidate_landing.html",
+            {
+                "invitation": invitation,
+                "invitation_valid": False,
+                "error_message": error_msg,
+            },
+        )
+
+    if request.method == "POST":
+        form = CandidateRegistrationForm(request.POST, invitation=invitation)
+        if form.is_valid():
+            with transaction.atomic():
+                User = get_user_model()
+                username = form.cleaned_data["username"]
+                first_name = form.cleaned_data["first_name"]
+                last_name = form.cleaned_data["last_name"]
+                phone = form.cleaned_data.get("phone", "")
+                password = form.cleaned_data["password"]
+
+                # 1. Create User
+                user = User.objects.create_user(
+                    username=username,
+                    email=invitation.email,
+                    first_name=first_name,
+                    last_name=last_name,
+                    password=password,
+                    is_active=True,
+                )
+
+                # 2. Grant Organization Membership
+                OrganizationMembership.objects.get_or_create(
+                    user=user,
+                    organization=invitation.organization,
+                    defaults={"is_active": True},
+                )
+
+                # 3. Create initial pre-hire Employee Profile
+                employee_name = f"{first_name} {last_name}".strip()
+                position_title = invitation.position.title if invitation.position else "New Hire"
+                employee = Employee.objects.create(
+                    user=user,
+                    name=employee_name,
+                    email=invitation.email,
+                    phone=phone,
+                    designation=position_title,
+                    department=invitation.department,
+                    position=invitation.position,
+                    organization=invitation.organization,
+                    joined_on=invitation.proposed_joining_date,
+                    employment_status="PROBATION",
+                    basic_salary=Decimal("0.00"),
+                )
+
+                # 4. Accept the invitation
+                invitation.accept(employee=employee)
+
+                # 5. Log the user in
+                login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+
+                messages.success(
+                    request,
+                    f"Welcome to {invitation.organization.name}! Your account has been created."
+                )
+
+                # Redirect to dashboard or onboarding wizard entry
+                return redirect("dashboard")
+    else:
+        form = CandidateRegistrationForm(invitation=invitation)
+
     return render(
         request,
-        "onboarding/invitation_create.html",
+        "onboarding/candidate_landing.html",
         {
             "invitation": invitation,
-            "title": f"Welcome {invitation.first_name}",
-        }
+            "invitation_valid": True,
+            "form": form,
+        },
     )
+
 

@@ -85,3 +85,81 @@ class CandidateInvitationForm(forms.ModelForm):
         if commit:
             invitation.save()
         return invitation
+
+
+class CandidateRegistrationForm(forms.Form):
+    """
+    Candidate self-registration form on token verification.
+    Sets up password credentials and confirms contact information.
+    """
+    username = forms.CharField(
+        max_length=150,
+        required=True,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Choose a username", "autocomplete": "username"})
+    )
+    first_name = forms.CharField(
+        max_length=100,
+        required=True,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "First name"})
+    )
+    last_name = forms.CharField(
+        max_length=100,
+        required=True,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Last name"})
+    )
+    phone = forms.CharField(
+        max_length=20,
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Mobile phone number"})
+    )
+    password = forms.CharField(
+        widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "Create strong password", "autocomplete": "new-password"}),
+        help_text="Must be at least 8 characters."
+    )
+    password_confirm = forms.CharField(
+        widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "Confirm password", "autocomplete": "new-password"})
+    )
+
+    def __init__(self, *args, invitation=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.invitation = invitation
+        if invitation:
+            self.fields["first_name"].initial = invitation.first_name
+            self.fields["last_name"].initial = invitation.last_name
+            self.fields["phone"].initial = invitation.phone
+            if not self.is_bound:
+                suggested_username = invitation.email.split("@")[0].lower()
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+                base_username = suggested_username
+                idx = 1
+                while User.objects.filter(username=suggested_username).exists():
+                    suggested_username = f"{base_username}{idx}"
+                    idx += 1
+                self.fields["username"].initial = suggested_username
+
+    def clean_username(self):
+        username = self.cleaned_data.get("username", "").strip()
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        if User.objects.filter(username__iexact=username).exists():
+            raise ValidationError("This username is already taken. Please choose another.")
+        return username
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password = cleaned_data.get("password")
+        password_confirm = cleaned_data.get("password_confirm")
+
+        if password and password_confirm and password != password_confirm:
+            self.add_error("password_confirm", "Passwords do not match.")
+
+        if password:
+            from django.contrib.auth.password_validation import validate_password
+            try:
+                validate_password(password)
+            except ValidationError as error:
+                self.add_error("password", error)
+
+        return cleaned_data
+
