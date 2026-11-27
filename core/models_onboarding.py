@@ -299,6 +299,35 @@ class OnboardingProfile(models.Model):
         help_text="Uploaded cancelled cheque or bank passbook copy"
     )
 
+    # Step 4: Company Policies Acknowledgment & Digital Sign-Off
+    agreed_code_of_conduct = models.BooleanField(
+        default=False,
+        help_text="Candidate agreement to Company Code of Conduct & Workplace Ethics"
+    )
+    agreed_security_policy = models.BooleanField(
+        default=False,
+        help_text="Candidate agreement to Information Security & Acceptable Use Policy"
+    )
+    agreed_nda = models.BooleanField(
+        default=False,
+        help_text="Candidate agreement to Non-Disclosure Agreement (NDA) & Confidentiality"
+    )
+    policy_signed_full_name = models.CharField(
+        max_length=150,
+        blank=True,
+        help_text="Digital signature name matching legal declaration"
+    )
+    policy_accepted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Exact timestamp of electronic acceptance"
+    )
+    policy_signer_ip = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        help_text="IP address of device executing policy sign-off"
+    )
+
     # Step completion markers
     step_1_completed = models.BooleanField(default=False)
     step_2_completed = models.BooleanField(default=False)

@@ -19,6 +19,7 @@ from core.forms_onboarding import (
     OnboardingStep1PersonalForm,
     OnboardingStep2StatutoryForm,
     OnboardingStep3BankingForm,
+    OnboardingStep4PolicyForm,
 )
 from core.models import Employee
 from core.models_banking import EmployeeBankAccount
@@ -532,26 +533,81 @@ def onboarding_wizard_step3(request):
     )
 
 
+def _get_client_ip(request):
+    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(",")[0].strip()
+    else:
+        ip = request.META.get("REMOTE_ADDR")
+    return ip
+
+
 @login_required
-def onboarding_wizard_step4_stub(request):
+def onboarding_wizard_step4(request):
     """
-    Placeholder route for Step 4 (Company Policies), implemented in Phase 7.
+    Multi-Step Onboarding Wizard - Step 4: Company Policies Acknowledgment & Digital Sign-Off.
+    Presents Code of Conduct, Information Security, and NDA with digital signature and IP capture.
+    """
+    profile = _get_candidate_onboarding_profile(request.user)
+    if not profile:
+        messages.info(request, "No active onboarding checklist found for your account.")
+        return redirect("dashboard")
+
+    if request.method == "POST":
+        form = OnboardingStep4PolicyForm(request.POST, instance=profile)
+        if form.is_valid():
+            profile = form.save(commit=False)
+            profile.step_4_completed = True
+            profile.policy_accepted_at = timezone.now()
+            profile.policy_signer_ip = _get_client_ip(request)
+            if profile.current_step <= OnboardingProfile.STEP_4_POLICIES:
+                profile.current_step = OnboardingProfile.STEP_5_REVIEW
+            profile.save()
+
+            messages.success(request, "Step 4: Company policies acknowledged and electronically signed successfully.")
+            return redirect("onboarding_wizard_step5")
+    else:
+        initial = {}
+        if not profile.policy_signed_full_name:
+            initial["policy_signed_full_name"] = profile.invitation.full_name
+
+        form = OnboardingStep4PolicyForm(instance=profile, initial=initial)
+
+    return render(
+        request,
+        "onboarding/wizard_step4.html",
+        {
+            "profile": profile,
+            "invitation": profile.invitation,
+            "form": form,
+            "step": 4,
+            "total_steps": 4,
+            "title": "Onboarding Wizard - Step 4: Company Policies",
+        }
+    )
+
+
+@login_required
+def onboarding_wizard_step5_stub(request):
+    """
+    Placeholder route for Step 5 / Final Review & Verification Queue, implemented in Phase 8.
     """
     profile = _get_candidate_onboarding_profile(request.user)
     if not profile:
         return redirect("dashboard")
     return render(
         request,
-        "onboarding/wizard_step3.html",
+        "onboarding/wizard_step4.html",
         {
             "profile": profile,
             "invitation": profile.invitation,
             "step": 4,
             "total_steps": 4,
             "is_stub": True,
-            "title": "Onboarding Wizard - Step 4: Company Policies",
+            "title": "Onboarding Wizard - Review & Submit",
         }
     )
+
 
 
 

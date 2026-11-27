@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}Onboarding Wizard - Step 4: Company Policies | {{ profile.organization.name }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 860px; margin: 1.5rem auto; padding: 0 1rem;">
+
+    <!-- Wizard Header & Progress Bar -->
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
+            <div>
+                <span class="hros-pill-badge" style="background: #e0f2fe; color: #0369a1; font-weight: 600; font-size: 0.75rem; padding: 0.25rem 0.6rem; border-radius: 9999px;">
+                    CANDIDATE ONBOARDING
+                </span>
+                <h1 style="margin: 0.35rem 0 0 0; font-size: 1.5rem; color: #0f172a;">Welcome to {{ profile.organization.name }}</h1>
+                <p style="margin: 0.25rem 0 0 0; color: #64748b; font-size: 0.875rem;">
+                    Role: <strong>{% if invitation.position %}{{ invitation.position.title }}{% else %}Team Member{% endif %}</strong>
+                    {% if invitation.department %} &bull; {{ invitation.department.name }}{% endif %}
+                    &bull; Expected Joining: <strong>{{ invitation.proposed_joining_date|date:"d M Y" }}</strong>
+                </p>
+            </div>
+            <div style="text-align: right;">
+                <span style="font-size: 0.875rem; font-weight: 600; color: #0f766e;">Step {{ step }} of {{ total_steps }}</span>
+            </div>
+        </div>
+
+        <!-- Step Indicator Track -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-top: 1rem;">
+            <a href="{% url 'onboarding_wizard_step1' %}" style="text-decoration: none; padding: 0.6rem; border-radius: 8px; background: #f0fdf4; border: 1px solid #86efac; text-align: center;">
+                <span style="display: block; font-size: 0.75rem; font-weight: 600; color: #15803d;">✓ STEP 1</span>
+                <span style="font-size: 0.825rem; font-weight: 600; color: #166534;">Personal Details</span>
+            </a>
+            <a href="{% url 'onboarding_wizard_step2' %}" style="text-decoration: none; padding: 0.6rem; border-radius: 8px; background: #f0fdf4; border: 1px solid #86efac; text-align: center;">
+                <span style="display: block; font-size: 0.75rem; font-weight: 600; color: #15803d;">✓ STEP 2</span>
+                <span style="font-size: 0.825rem; font-weight: 600; color: #166534;">Statutory Compliance</span>
+            </a>
+            <a href="{% url 'onboarding_wizard_step3' %}" style="text-decoration: none; padding: 0.6rem; border-radius: 8px; background: #f0fdf4; border: 1px solid #86efac; text-align: center;">
+                <span style="display: block; font-size: 0.75rem; font-weight: 600; color: #15803d;">✓ STEP 3</span>
+                <span style="font-size: 0.825rem; font-weight: 600; color: #166534;">Bank Account</span>
+            </a>
+            <div style="padding: 0.6rem; border-radius: 8px; background: #f0fdf4; border: 2px solid #0f766e; text-align: center;">
+                <span style="display: block; font-size: 0.75rem; font-weight: 600; color: #0f766e;">STEP 4</span>
+                <span style="font-size: 0.825rem; font-weight: 600; color: #0f766e;">Policy Sign-Off</span>
+            </div>
+        </div>
+    </div>
+
+    {% if is_stub %}
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 2.5rem; text-align: center;">
+        <div style="width: 56px; height: 56px; border-radius: 50%; background: #ecfdf5; color: #059669; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem auto; font-size: 1.5rem;">
+            ✓
+        </div>
+        <h2 style="font-size: 1.5rem; color: #0f172a; margin-bottom: 0.5rem;">All Onboarding Steps Completed!</h2>
+        <p style="color: #64748b; max-width: 480px; margin: 0 auto 1.5rem auto; font-size: 0.95rem;">
+            You have successfully filled your personal, statutory, banking, and policy consent records. Phase 8 will provide the final HR review and submission queue.
+        </p>
+        <a href="{% url 'onboarding_wizard_step4' %}" class="btn ghost" style="padding: 0.6rem 1.25rem;">&larr; Back to Step 4</a>
+        <a href="{% url 'dashboard' %}" class="btn" style="padding: 0.6rem 1.25rem; margin-left: 0.5rem; background: #0f766e; color: white;">Go to Dashboard</a>
+    </div>
+    {% else %}
+    <!-- Step 4 Form Card -->
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="margin: 0 0 0.5rem 0; font-size: 1.25rem; color: #0f172a;">Company Policies &amp; Digital Sign-Off</h2>
+        <p style="margin: 0 0 1.75rem 0; color: #64748b; font-size: 0.875rem;">
+            Please carefully review the organizational employment policies below. Your electronic consent and declaration constitute a legally binding agreement between you and <strong>{{ profile.organization.name }}</strong>.
+        </p>
+
+        <form method="post" novalidate id="step4Form">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="toast error" role="alert" style="background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                    {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+                </div>
+            {% endif %}
+
+            <!-- Policy Tabbed Reader -->
+            <div style="border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 2rem; overflow: hidden;">
+                <div style="display: flex; background: #f8fafc; border-bottom: 1px solid #e2e8f0;" id="policyTabs">
+                    <button type="button" class="tab-btn active" data-target="policy1" style="flex: 1; padding: 0.75rem 1rem; border: none; background: white; font-weight: 600; color: #0f766e; cursor: pointer; border-bottom: 2px solid #0f766e;">
+                        1. Code of Conduct
+                    </button>
+                    <button type="button" class="tab-btn" data-target="policy2" style="flex: 1; padding: 0.75rem 1rem; border: none; background: transparent; font-weight: 500; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent;">
+                        2. InfoSec Policy
+                    </button>
+                    <button type="button" class="tab-btn" data-target="policy3" style="flex: 1; padding: 0.75rem 1rem; border: none; background: transparent; font-weight: 500; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent;">
+                        3. Confidentiality / NDA
+                    </button>
+                </div>
+
+                <div style="padding: 1.25rem; max-height: 220px; overflow-y: auto; font-size: 0.875rem; color: #334155; line-height: 1.6; background: #fff;">
+                    <div id="policy1" class="policy-pane">
+                        <h4 style="margin: 0 0 0.5rem 0; color: #0f172a;">Code of Conduct &amp; Professional Ethics</h4>
+                        <p>All employees of <strong>{{ profile.organization.name }}</strong> are expected to conduct business with the highest standards of integrity, mutual respect, and professionalism. We maintain a zero-tolerance policy towards discrimination, harassment, retaliation, and unlawful workplace behavior.</p>
+                        <p>Employees must avoid real or perceived conflicts of interest, protect company reputation, and treat team members, vendors, and clients equitably.</p>
+                    </div>
+                    <div id="policy2" class="policy-pane" style="display: none;">
+                        <h4 style="margin: 0 0 0.5rem 0; color: #0f172a;">Information Security &amp; Acceptable Device Usage</h4>
+                        <p>Information assets, company credentials, proprietary code, customer records, and communication systems are the property of {{ profile.organization.name }}. Employees must adhere to strong password guidelines, utilize multi-factor authentication, and never store corporate credentials on unauthorized personal devices.</p>
+                        <p>Any suspected security incident, unauthorized data transfer, or hardware loss must be reported to the IT Security Team within 1 hour of occurrence.</p>
+                    </div>
+                    <div id="policy3" class="policy-pane" style="display: none;">
+                        <h4 style="margin: 0 0 0.5rem 0; color: #0f172a;">Non-Disclosure Agreement (NDA) &amp; Proprietary Rights</h4>
+                        <p>All business strategies, technical architectures, client lists, algorithms, source codes, and financial forecasts encountered during your employment are strictly confidential trade secrets.</p>
+                        <p>You agree not to disclose, duplicate, reverse engineer, or misappropriate any confidential materials during or subsequent to your employment tenure without express prior written consent from the executive board.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mandatory Acknowledgments -->
+            <fieldset style="border: none; padding: 0; margin: 0 0 2rem 0;">
+                <legend style="font-weight: 700; font-size: 1rem; color: #1e293b; border-bottom: 1px solid #e2e8f0; width: 100%; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                    Policy Consents &amp; Acknowledgment
+                </legend>
+
+                <div style="display: flex; flex-direction: column; gap: 0.85rem;">
+                    <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; font-size: 0.875rem; color: #334155;">
+                        {{ form.agreed_code_of_conduct }}
+                        <span>I confirm that I have read, understood, and agree to strictly abide by the <strong>Code of Conduct &amp; Professional Ethics</strong>. <span style="color: #ef4444;">*</span></span>
+                    </label>
+                    {% for error in form.agreed_code_of_conduct.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-left: 1.5rem;">{{ error }}</div>{% endfor %}
+
+                    <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; font-size: 0.875rem; color: #334155;">
+                        {{ form.agreed_security_policy }}
+                        <span>I confirm that I have read, understood, and agree to follow the <strong>Information Security &amp; Acceptable Usage Policy</strong>. <span style="color: #ef4444;">*</span></span>
+                    </label>
+                    {% for error in form.agreed_security_policy.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-left: 1.5rem;">{{ error }}</div>{% endfor %}
+
+                    <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; font-size: 0.875rem; color: #334155;">
+                        {{ form.agreed_nda }}
+                        <span>I agree to the terms of the <strong>Non-Disclosure Agreement (NDA) &amp; Intellectual Property Assignment</strong>. <span style="color: #ef4444;">*</span></span>
+                    </label>
+                    {% for error in form.agreed_nda.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-left: 1.5rem;">{{ error }}</div>{% endfor %}
+                </div>
+            </fieldset>
+
+            <!-- Digital Signature -->
+            <fieldset style="border: none; padding: 0; margin: 0 0 2rem 0; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem;">
+                <legend style="font-weight: 700; font-size: 0.95rem; color: #1e293b; margin-bottom: 0.5rem;">
+                    Digital Signature &amp; Declaration
+                </legend>
+
+                <p style="margin: 0 0 1rem 0; font-size: 0.825rem; color: #64748b;">
+                    By typing your name below and clicking "Complete Digital Sign-Off", you certify that all information submitted across Steps 1 through 4 is true and accurate to the best of your knowledge.
+                </p>
+
+                <div class="form-group">
+                    <label for="{{ form.policy_signed_full_name.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                        Electronic Signature (Type Your Full Legal Name) <span style="color: #ef4444;">*</span>
+                    </label>
+                    {{ form.policy_signed_full_name }}
+                    {% for error in form.policy_signed_full_name.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                </div>
+
+                {% if profile.policy_accepted_at %}
+                <div style="margin-top: 0.75rem; font-size: 0.775rem; color: #047857;">
+                    ✓ Previously signed on {{ profile.policy_accepted_at|date:"d M Y H:i" }} (IP: {{ profile.policy_signer_ip|default:"Recorded" }})
+                </div>
+                {% endif %}
+            </fieldset>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 1.5rem; margin-top: 1rem;">
+                <a href="{% url 'onboarding_wizard_step3' %}" class="btn ghost" style="padding: 0.65rem 1.25rem;">&larr; Back to Step 3</a>
+                <button type="submit" class="btn btn-primary" style="padding: 0.65rem 1.75rem; background: #0f766e; color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">
+                    Complete Digital Sign-Off &rarr;
+                </button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const tabButtons = document.querySelectorAll("#policyTabs .tab-btn");
+    const panes = document.querySelectorAll(".policy-pane");
+
+    tabButtons.forEach(btn => {
+        btn.addEventListener("click", function() {
+            tabButtons.forEach(b => {
+                b.style.background = "transparent";
+                b.style.color = "#64748b";
+                b.style.borderBottom = "2px solid transparent";
+            });
+            panes.forEach(p => p.style.display = "none");
+
+            this.style.background = "#fff";
+            this.style.color = "#0f766e";
+            this.style.borderBottom = "2px solid #0f766e";
+            const target = document.getElementById(this.dataset.target);
+            if (target) target.style.display = "block";
+        });
+    });
+});
+</script>
+{% endblock %}

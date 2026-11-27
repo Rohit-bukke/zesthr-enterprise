@@ -424,5 +424,56 @@ class OnboardingStep3BankingForm(forms.ModelForm):
         return cleaned_data
 
 
+class OnboardingStep4PolicyForm(forms.ModelForm):
+    """
+    Onboarding Wizard Step 4: Company Policies Acknowledgment & Digital Sign-Off.
+    """
+    class Meta:
+        from core.models_onboarding import OnboardingProfile
+        model = OnboardingProfile
+        fields = [
+            "agreed_code_of_conduct",
+            "agreed_security_policy",
+            "agreed_nda",
+            "policy_signed_full_name",
+        ]
+        widgets = {
+            "agreed_code_of_conduct": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "agreed_security_policy": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "agreed_nda": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "policy_signed_full_name": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Type your full legal name as your electronic signature",
+            }),
+        }
+
+    def clean_agreed_code_of_conduct(self):
+        agreed = self.cleaned_data.get("agreed_code_of_conduct")
+        if not agreed:
+            raise ValidationError("You must read and agree to the Code of Conduct & Workplace Ethics.")
+        return agreed
+
+    def clean_agreed_security_policy(self):
+        agreed = self.cleaned_data.get("agreed_security_policy")
+        if not agreed:
+            raise ValidationError("You must read and agree to the Information Security & Acceptable Use Policy.")
+        return agreed
+
+    def clean_agreed_nda(self):
+        agreed = self.cleaned_data.get("agreed_nda")
+        if not agreed:
+            raise ValidationError("You must read and agree to the Non-Disclosure Agreement (NDA) & Confidentiality Terms.")
+        return agreed
+
+    def clean_policy_signed_full_name(self):
+        sig = self.cleaned_data.get("policy_signed_full_name", "").strip()
+        if not sig:
+            raise ValidationError("Please provide your full legal signature name.")
+        if len(sig) < 3:
+            raise ValidationError("Signature name is too short. Please type your full name.")
+        return sig
+
+
+
 
 

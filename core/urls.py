@@ -113,5 +113,6 @@ urlpatterns = [
     path("onboarding/wizard/step-1/", views_onboarding.onboarding_wizard_step1, name="onboarding_wizard_step1"),
     path("onboarding/wizard/step-2/", views_onboarding.onboarding_wizard_step2, name="onboarding_wizard_step2"),
     path("onboarding/wizard/step-3/", views_onboarding.onboarding_wizard_step3, name="onboarding_wizard_step3"),
-    path("onboarding/wizard/step-4/", views_onboarding.onboarding_wizard_step4_stub, name="onboarding_wizard_step4"),
+    path("onboarding/wizard/step-4/", views_onboarding.onboarding_wizard_step4, name="onboarding_wizard_step4"),
+    path("onboarding/wizard/step-5/", views_onboarding.onboarding_wizard_step5_stub, name="onboarding_wizard_step5"),
 ]
