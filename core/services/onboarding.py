@@ -133,7 +133,7 @@ def generate_provisioning_tasks(
         base_date
         or checklist.target_date
         or (checklist.invitation.proposed_joining_date if checklist.invitation else None)
-        or timezone.now().date()
+        or timezone.localdate()
     )
 
     existing_task_keys = set(

@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.organizations.models import Organization
 from core.models import Employee, EmploymentHistory
@@ -54,7 +55,7 @@ class CompensationTests(TestCase):
             invalid_band.clean()
 
     def test_propose_and_approve_salary_revision(self):
-        today = date.today()
+        today = timezone.localdate()
         revision = compensation.propose_salary_revision(
             employee=self.employee,
             revised_salary=Decimal("60000.00"),
@@ -81,7 +82,7 @@ class CompensationTests(TestCase):
         self.assertEqual(history.new_value, "60000.00")
 
     def test_reject_salary_revision(self):
-        today = date.today()
+        today = timezone.localdate()
         revision = compensation.propose_salary_revision(
             employee=self.employee,
             revised_salary=Decimal("70000.00"),
@@ -96,7 +97,7 @@ class CompensationTests(TestCase):
         self.assertEqual(self.employee.basic_salary, Decimal("50000.00"))
 
     def test_future_dated_revision_applied_on_schedule(self):
-        tomorrow = date.today() + timedelta(days=1)
+        tomorrow = timezone.localdate() + timedelta(days=1)
         revision = compensation.propose_salary_revision(
             employee=self.employee,
             revised_salary=Decimal("55000.00"),
