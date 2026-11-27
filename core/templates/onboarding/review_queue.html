@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Onboarding Verification Queue | HRMS Portal{% endblock %}
+
+{% block content %}
+<div class="head">
+    <div>
+        <h1>Candidate Onboarding Verification Queue</h1>
+        <p class="muted">Review submitted pre-onboarding packages, inspect identity proofs, and activate employee profiles.</p>
+    </div>
+    <div class="actions">
+        <a class="btn ghost" href="{% url 'onboarding_invitations' %}">&larr; Back to Invitations Console</a>
+    </div>
+</div>
+
+<!-- Queue Summary Counters -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+    <a href="?status=SUBMITTED" style="text-decoration: none; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: block;">
+        <span style="font-size: 0.8rem; font-weight: 600; color: #4338ca; text-transform: uppercase;">Awaiting HR Review</span>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #1e1b4b; margin-top: 0.25rem;">{{ pending_count }}</div>
+    </a>
+    <a href="?status=VERIFIED" style="text-decoration: none; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: block;">
+        <span style="font-size: 0.8rem; font-weight: 600; color: #15803d; text-transform: uppercase;">Verified &amp; Activated</span>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #14532d; margin-top: 0.25rem;">{{ verified_count }}</div>
+    </a>
+    <a href="?status=DRAFT" style="text-decoration: none; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: block;">
+        <span style="font-size: 0.8rem; font-weight: 600; color: #b45309; text-transform: uppercase;">In Progress (Candidate Draft)</span>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #78350f; margin-top: 0.25rem;">{{ draft_count }}</div>
+    </a>
+</div>
+
+<!-- Filters & Search -->
+<div class="card" style="margin-bottom: 1.5rem; padding: 1rem;">
+    <form method="get" style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+        <div style="flex: 1; min-width: 240px;">
+            <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Search by candidate name or email..." class="form-control" style="width: 100%;">
+        </div>
+        <div>
+            <select name="status" class="form-control" onchange="this.form.submit()">
+                <option value="all" {% if current_status == 'all' %}selected{% endif %}>All Submissions</option>
+                <option value="SUBMITTED" {% if current_status == 'SUBMITTED' %}selected{% endif %}>Awaiting Verification (SUBMITTED)</option>
+                <option value="VERIFIED" {% if current_status == 'VERIFIED' %}selected{% endif %}>Verified (VERIFIED)</option>
+                <option value="DRAFT" {% if current_status == 'DRAFT' %}selected{% endif %}>Candidate Draft (DRAFT)</option>
+                <option value="REJECTED" {% if current_status == 'REJECTED' %}selected{% endif %}>Changes Requested (REJECTED)</option>
+            </select>
+        </div>
+        <button type="submit" class="btn">Filter</button>
+        {% if request.GET.q or current_status != 'all' %}
+            <a href="{% url 'onboarding_review_queue' %}" class="btn ghost">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Review Queue Table -->
+<section class="card">
+    <div class="scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Candidate</th>
+                    <th>Role &amp; Department</th>
+                    <th>Proposed Joining</th>
+                    <th>Progress</th>
+                    <th>Status</th>
+                    <th>Submitted On</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for profile in page_obj %}
+                <tr>
+                    <td>
+                        <strong>{{ profile.invitation.full_name }}</strong>
+                        <div class="muted" style="font-size: 0.8rem;">{{ profile.invitation.email }}</div>
+                    </td>
+                    <td>
+                        {{ profile.invitation.position.title|default:"Team Member" }}
+                        <div class="muted" style="font-size: 0.8rem;">{{ profile.invitation.department.name|default:"General" }}</div>
+                    </td>
+                    <td>{{ profile.invitation.proposed_joining_date|date:"d M Y" }}</td>
+                    <td>
+                        <div style="font-size: 0.8rem;">
+                            Step {{ profile.current_step }} of 5
+                            {% if profile.step_1_completed and profile.step_2_completed and profile.step_3_completed and profile.step_4_completed %}
+                                <span style="color: #15803d; font-weight: 600;">(100%)</span>
+                            {% else %}
+                                <span style="color: #64748b;">(In Progress)</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        {% if profile.status == 'SUBMITTED' %}
+                            <span class="hros-badge" style="background: #e0e7ff; color: #3730a3;">Awaiting Review</span>
+                        {% elif profile.status == 'VERIFIED' %}
+                            <span class="hros-badge" style="background: #dcfce7; color: #166534;">Verified</span>
+                        {% elif profile.status == 'REJECTED' %}
+                            <span class="hros-badge" style="background: #fee2e2; color: #991b1b;">Changes Requested</span>
+                        {% else %}
+                            <span class="hros-badge" style="background: #fef3c7; color: #92400e;">Draft</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if profile.submitted_at %}
+                            {{ profile.submitted_at|date:"d M Y, H:i" }}
+                        {% else %}
+                            <span class="muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'onboarding_review_detail' profile.pk %}" class="btn sm" style="background: #0f766e; color: white;">
+                            Review &rarr;
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="empty" style="text-align: center; padding: 2rem;">
+                        No candidate onboarding packages match the current criteria.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-top: 1px solid #e2e8f0;">
+        <span style="font-size: 0.85rem; color: #64748b;">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        <div>
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}{% if current_status != 'all' %}&status={{ current_status }}{% endif %}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="btn ghost sm">&larr; Previous</a>
+            {% endif %}
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}{% if current_status != 'all' %}&status={{ current_status }}{% endif %}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="btn ghost sm">Next &rarr;</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

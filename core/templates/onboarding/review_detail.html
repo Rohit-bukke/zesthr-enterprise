@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}Verify Onboarding: {{ profile.invitation.full_name }} | HRMS Portal{% endblock %}
+
+{% block content %}
+<div class="head">
+    <div>
+        <a href="{% url 'onboarding_review_queue' %}" style="text-decoration: none; color: #0f766e; font-size: 0.875rem; font-weight: 600;">
+            &larr; Back to Verification Queue
+        </a>
+        <h1 style="margin-top: 0.25rem;">Candidate Review: {{ profile.invitation.full_name }}</h1>
+        <p class="muted">
+            Role: <strong>{% if profile.invitation.position %}{{ profile.invitation.position.title }}{% else %}Team Member{% endif %}</strong>
+            {% if profile.invitation.department %} &bull; {{ profile.invitation.department.name }}{% endif %}
+            &bull; Expected Joining Date: <strong>{{ profile.invitation.proposed_joining_date|date:"d M Y" }}</strong>
+        </p>
+    </div>
+    <div class="actions">
+        {% if profile.status == 'VERIFIED' %}
+            <span class="hros-badge" style="background: #dcfce7; color: #166534; padding: 0.5rem 1rem; font-size: 0.9rem;">
+                ✓ Profile Verified &amp; Active
+            </span>
+        {% endif %}
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; align-items: start;">
+
+    <!-- Left Column: Submitted Candidate Details & Documents -->
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+
+        <!-- Section 1: Personal Details -->
+        <div class="card" style="padding: 1.25rem;">
+            <h3 style="margin: 0 0 1rem 0; font-size: 1.05rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; color: #0f172a;">
+                1. Personal Profile &amp; Emergency Contacts
+            </h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; font-size: 0.875rem;">
+                <div><span style="color: #64748b;">Full Name:</span> <strong>{{ profile.invitation.full_name }}</strong></div>
+                <div><span style="color: #64748b;">Email Address:</span> <strong>{{ profile.invitation.email }}</strong></div>
+                <div><span style="color: #64748b;">Primary Phone:</span> <strong>{{ profile.invitation.phone|default:"—" }}</strong></div>
+                <div><span style="color: #64748b;">Date of Birth:</span> <strong>{{ profile.date_of_birth|date:"d M Y" }}</strong></div>
+                <div><span style="color: #64748b;">Gender:</span> <strong>{{ profile.get_gender_display|default:"—" }}</strong></div>
+                <div><span style="color: #64748b;">Blood Group:</span> <strong>{{ profile.blood_group|default:"—" }}</strong></div>
+                <div style="grid-column: span 2;"><span style="color: #64748b;">Residential Address:</span> {{ profile.current_address }}</div>
+                <div style="grid-column: span 2; border-top: 1px solid #f8fafc; padding-top: 0.5rem;">
+                    <span style="color: #64748b;">Emergency Contact:</span>
+                    <strong>{{ profile.emergency_contact_name }} ({{ profile.emergency_contact_relationship }}) &bull; {{ profile.emergency_contact_phone }}</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2: Statutory Compliance & Document Inspection -->
+        <div class="card" style="padding: 1.25rem;">
+            <h3 style="margin: 0 0 1rem 0; font-size: 1.05rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; color: #0f172a;">
+                2. Statutory Identity &amp; Uploaded Proofs
+            </h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; font-size: 0.875rem; margin-bottom: 1rem;">
+                <div>
+                    <span style="color: #64748b; display: block;">Income Tax PAN:</span>
+                    <strong style="font-size: 1.05rem; color: #0f172a;">{{ profile.pan_number }}</strong>
+                    {% if profile.pan_document %}
+                        <div style="margin-top: 0.5rem;">
+                            <a href="{{ profile.pan_document.url }}" target="_blank" class="btn sm ghost" style="font-size: 0.775rem;">
+                                📄 Inspect PAN Card &rarr;
+                            </a>
+                        </div>
+                    {% else %}
+                        <div style="color: #dc2626; font-size: 0.75rem; margin-top: 0.25rem;">No document proof attached</div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <span style="color: #64748b; display: block;">Aadhaar Number:</span>
+                    <strong style="font-size: 1.05rem; color: #0f172a;">{{ profile.aadhaar_number }}</strong>
+                    {% if profile.aadhaar_document %}
+                        <div style="margin-top: 0.5rem;">
+                            <a href="{{ profile.aadhaar_document.url }}" target="_blank" class="btn sm ghost" style="font-size: 0.775rem;">
+                                📄 Inspect Aadhaar Card &rarr;
+                            </a>
+                        </div>
+                    {% else %}
+                        <div style="color: #dc2626; font-size: 0.75rem; margin-top: 0.25rem;">No document proof attached</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div style="font-size: 0.875rem; border-top: 1px solid #f8fafc; padding-top: 0.5rem;">
+                <span style="color: #64748b;">EPFO Universal Account Number (UAN):</span>
+                <strong>{% if profile.uan_number %}{{ profile.uan_number }}{% else %}New PF Account to be Generated{% endif %}</strong>
+            </div>
+        </div>
+
+        <!-- Section 3: Banking Details -->
+        <div class="card" style="padding: 1.25rem;">
+            <h3 style="margin: 0 0 1rem 0; font-size: 1.05rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; color: #0f172a;">
+                3. Banking &amp; Disbursement Verification
+            </h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; font-size: 0.875rem; margin-bottom: 1rem;">
+                <div><span style="color: #64748b;">Bank Name:</span> <strong>{{ profile.bank_name }}</strong></div>
+                <div><span style="color: #64748b;">Branch:</span> <strong>{{ profile.branch_name|default:"—" }}</strong></div>
+                <div><span style="color: #64748b;">Account Number:</span> <strong>{{ profile.account_number }}</strong></div>
+                <div><span style="color: #64748b;">IFSC Code:</span> <strong>{{ profile.ifsc_code }}</strong></div>
+                <div><span style="color: #64748b;">Account Holder:</span> <strong>{{ profile.account_holder_name }}</strong></div>
+                <div><span style="color: #64748b;">Account Type:</span> <strong>{{ profile.get_account_type_display }}</strong></div>
+            </div>
+
+            {% if profile.cheque_document %}
+                <div style="border-top: 1px solid #f8fafc; padding-top: 0.75rem;">
+                    <a href="{{ profile.cheque_document.url }}" target="_blank" class="btn sm ghost" style="font-size: 0.775rem;">
+                        📄 Inspect Cancelled Cheque / Passbook Copy &rarr;
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Section 4: Policy Sign-Off Audit -->
+        <div class="card" style="padding: 1.25rem;">
+            <h3 style="margin: 0 0 0.75rem 0; font-size: 1.05rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; color: #0f172a;">
+                4. Policy Consent &amp; Non-Repudiation Audit
+            </h3>
+            <div style="font-size: 0.85rem; color: #475569; display: flex; flex-direction: column; gap: 0.35rem;">
+                <div>✓ Code of Conduct &amp; Ethics: <strong>Agreed</strong></div>
+                <div>✓ Information Security Policy: <strong>Agreed</strong></div>
+                <div>✓ Non-Disclosure Agreement (NDA): <strong>Agreed</strong></div>
+                <div style="margin-top: 0.5rem; color: #0f172a;">
+                    Electronically signed as: <strong>{{ profile.policy_signed_full_name }}</strong>
+                    &bull; Timestamp: <strong>{{ profile.policy_accepted_at|date:"d M Y, H:i" }}</strong>
+                    &bull; Client IP: <code>{{ profile.policy_signer_ip|default:"Recorded" }}</code>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Right Column: Verification & Action Panel -->
+    <div style="display: flex; flex-direction: column; gap: 1.5rem; position: sticky; top: 1rem;">
+
+        <div class="card" style="padding: 1.5rem;">
+            <h3 style="margin: 0 0 1rem 0; font-size: 1.15rem; color: #0f172a;">Compliance Verification</h3>
+
+            <div style="margin-bottom: 1.25rem;">
+                <span style="color: #64748b; font-size: 0.8rem; display: block; text-transform: uppercase; font-weight: 600;">Current State</span>
+                <span class="hros-badge" style="font-size: 0.9rem; margin-top: 0.25rem; display: inline-block;">
+                    {{ profile.get_status_display }}
+                </span>
+            </div>
+
+            {% if profile.verified_at %}
+                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.875rem; margin-bottom: 1.5rem; font-size: 0.825rem; color: #166534;">
+                    <strong>Verified By:</strong> {{ profile.verified_by.get_full_name|default:profile.verified_by.username }}<br>
+                    <strong>Timestamp:</strong> {{ profile.verified_at|date:"d M Y, H:i" }}
+                    {% if profile.verification_notes %}
+                        <div style="margin-top: 0.5rem; border-top: 1px dashed #86efac; padding-top: 0.5rem;">
+                            <strong>Notes:</strong> {{ profile.verification_notes }}
+                        </div>
+                    {% endif %}
+                </div>
+            {% endif %}
+
+            {% if profile.status != 'VERIFIED' %}
+            <form method="post" action="{% url 'onboarding_review_action' profile.pk %}" novalidate>
+                {% csrf_token %}
+
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                        Verification / Review Notes
+                    </label>
+                    <textarea name="notes" rows="3" class="form-control" placeholder="Optional notes or feedback for the record..." style="width: 100%;">{{ profile.verification_notes }}</textarea>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <button type="submit" name="action" value="approve" class="btn" style="width: 100%; background: #0f766e; color: white; padding: 0.75rem; font-weight: 700; font-size: 0.95rem;">
+                        ✓ Approve &amp; Activate Employee Record
+                    </button>
+
+                    <button type="submit" name="action" value="reject" class="btn ghost" style="width: 100%; color: #dc2626; border-color: #fca5a5; padding: 0.65rem; font-size: 0.875rem;">
+                        Request Changes from Candidate
+                    </button>
+                </div>
+            </form>
+            {% else %}
+                <div style="color: #64748b; font-size: 0.85rem; line-height: 1.5;">
+                    This candidate's records have been verified and activated. The employee profile is active in the employee directory and configured for payroll runs.
+                </div>
+                <div style="margin-top: 1rem;">
+                    <a href="{% url 'employee_list' %}" class="btn" style="width: 100%; text-align: center; display: block; box-sizing: border-box;">
+                        View in Employee Directory &rarr;
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}
