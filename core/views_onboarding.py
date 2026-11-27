@@ -18,8 +18,10 @@ from core.forms_onboarding import (
     CandidateRegistrationForm,
     OnboardingStep1PersonalForm,
     OnboardingStep2StatutoryForm,
+    OnboardingStep3BankingForm,
 )
 from core.models import Employee
+from core.models_banking import EmployeeBankAccount
 from core.models_onboarding import CandidateInvitation, OnboardingProfile
 from core.models_statutory import EmployeeStatutoryProfile
 
@@ -453,25 +455,104 @@ def onboarding_wizard_step2(request):
 
 
 @login_required
-def onboarding_wizard_step3_stub(request):
+def onboarding_wizard_step3(request):
     """
-    Placeholder route for Step 3 (Banking Details), implemented in Phase 6.
+    Multi-Step Onboarding Wizard - Step 3: Banking Details & Cheque Proof.
+    Captures bank, account number, IFSC, and cheque proof. Directly populates EmployeeBankAccount.
+    """
+    profile = _get_candidate_onboarding_profile(request.user)
+    if not profile:
+        messages.info(request, "No active onboarding checklist found for your account.")
+        return redirect("dashboard")
+
+    if request.method == "POST":
+        form = OnboardingStep3BankingForm(request.POST, request.FILES, instance=profile)
+        if form.is_valid():
+            profile = form.save(commit=False)
+            profile.step_3_completed = True
+            if profile.current_step <= OnboardingProfile.STEP_3_BANKING:
+                profile.current_step = OnboardingProfile.STEP_4_POLICIES
+            profile.save()
+
+            # Populate / Sync with EmployeeBankAccount
+            if hasattr(request.user, "employee_profile") and request.user.employee_profile:
+                emp = request.user.employee_profile
+                bank_acc, _ = EmployeeBankAccount.objects.get_or_create(
+                    employee=emp,
+                    defaults={
+                        "bank_name": profile.bank_name,
+                        "branch_name": profile.branch_name,
+                        "account_holder_name": profile.account_holder_name or emp.name,
+                        "account_number": profile.account_number,
+                        "ifsc_code": profile.ifsc_code,
+                        "account_type": profile.account_type,
+                        "payment_method": "NEFT",
+                    }
+                )
+                bank_acc.bank_name = profile.bank_name
+                bank_acc.branch_name = profile.branch_name
+                bank_acc.account_holder_name = profile.account_holder_name or emp.name
+                bank_acc.account_number = profile.account_number
+                bank_acc.ifsc_code = profile.ifsc_code
+                bank_acc.account_type = profile.account_type
+                bank_acc.save()
+
+            messages.success(request, "Step 3: Banking details & cancelled cheque recorded successfully.")
+            return redirect("onboarding_wizard_step4")
+    else:
+        initial = {}
+        if not profile.account_holder_name:
+            initial["account_holder_name"] = profile.invitation.full_name
+        if hasattr(request.user, "employee_profile") and request.user.employee_profile:
+            emp = request.user.employee_profile
+            bank_acc = getattr(emp, "bank_account", None)
+            if bank_acc:
+                if not profile.bank_name and bank_acc.bank_name:
+                    initial["bank_name"] = bank_acc.bank_name
+                if not profile.branch_name and bank_acc.branch_name:
+                    initial["branch_name"] = bank_acc.branch_name
+                if not profile.account_number and bank_acc.account_number:
+                    initial["account_number"] = bank_acc.account_number
+                if not profile.ifsc_code and bank_acc.ifsc_code:
+                    initial["ifsc_code"] = bank_acc.ifsc_code
+
+        form = OnboardingStep3BankingForm(instance=profile, initial=initial)
+
+    return render(
+        request,
+        "onboarding/wizard_step3.html",
+        {
+            "profile": profile,
+            "invitation": profile.invitation,
+            "form": form,
+            "step": 3,
+            "total_steps": 4,
+            "title": "Onboarding Wizard - Step 3: Banking Details",
+        }
+    )
+
+
+@login_required
+def onboarding_wizard_step4_stub(request):
+    """
+    Placeholder route for Step 4 (Company Policies), implemented in Phase 7.
     """
     profile = _get_candidate_onboarding_profile(request.user)
     if not profile:
         return redirect("dashboard")
     return render(
         request,
-        "onboarding/wizard_step2.html",
+        "onboarding/wizard_step3.html",
         {
             "profile": profile,
             "invitation": profile.invitation,
-            "step": 3,
+            "step": 4,
             "total_steps": 4,
             "is_stub": True,
-            "title": "Onboarding Wizard - Step 3: Banking Details",
+            "title": "Onboarding Wizard - Step 4: Company Policies",
         }
     )
+
 
 
 

@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}Onboarding Wizard - Step 3: Banking Details | {{ profile.organization.name }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 860px; margin: 1.5rem auto; padding: 0 1rem;">
+
+    <!-- Wizard Header & Progress Bar -->
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
+            <div>
+                <span class="hros-pill-badge" style="background: #e0f2fe; color: #0369a1; font-weight: 600; font-size: 0.75rem; padding: 0.25rem 0.6rem; border-radius: 9999px;">
+                    CANDIDATE ONBOARDING
+                </span>
+                <h1 style="margin: 0.35rem 0 0 0; font-size: 1.5rem; color: #0f172a;">Welcome to {{ profile.organization.name }}</h1>
+                <p style="margin: 0.25rem 0 0 0; color: #64748b; font-size: 0.875rem;">
+                    Role: <strong>{% if invitation.position %}{{ invitation.position.title }}{% else %}Team Member{% endif %}</strong>
+                    {% if invitation.department %} &bull; {{ invitation.department.name }}{% endif %}
+                    &bull; Expected Joining: <strong>{{ invitation.proposed_joining_date|date:"d M Y" }}</strong>
+                </p>
+            </div>
+            <div style="text-align: right;">
+                <span style="font-size: 0.875rem; font-weight: 600; color: #0f766e;">Step {{ step }} of {{ total_steps }}</span>
+            </div>
+        </div>
+
+        <!-- Step Indicator Track -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-top: 1rem;">
+            <a href="{% url 'onboarding_wizard_step1' %}" style="text-decoration: none; padding: 0.6rem; border-radius: 8px; background: #f0fdf4; border: 1px solid #86efac; text-align: center;">
+                <span style="display: block; font-size: 0.75rem; font-weight: 600; color: #15803d;">✓ STEP 1</span>
+                <span style="font-size: 0.825rem; font-weight: 600; color: #166534;">Personal Details</span>
+            </a>
+            <a href="{% url 'onboarding_wizard_step2' %}" style="text-decoration: none; padding: 0.6rem; border-radius: 8px; background: #f0fdf4; border: 1px solid #86efac; text-align: center;">
+                <span style="display: block; font-size: 0.75rem; font-weight: 600; color: #15803d;">✓ STEP 2</span>
+                <span style="font-size: 0.825rem; font-weight: 600; color: #166534;">Statutory Compliance</span>
+            </a>
+            <div style="padding: 0.6rem; border-radius: 8px; background: #f0fdf4; border: 2px solid #0f766e; text-align: center;">
+                <span style="display: block; font-size: 0.75rem; font-weight: 600; color: #0f766e;">STEP 3</span>
+                <span style="font-size: 0.825rem; font-weight: 600; color: #0f766e;">Bank Account</span>
+            </div>
+            <div style="padding: 0.6rem; border-radius: 8px; background: {% if profile.step_4_completed %}#f0fdf4; border: 1px solid #86efac;{% else %}#f8fafc; border: 1px solid #cbd5e1;{% endif %} text-align: center;">
+                <span style="display: block; font-size: 0.75rem; font-weight: 600; color: #64748b;">STEP 4</span>
+                <span style="font-size: 0.825rem; color: #475569;">Policy Sign-Off</span>
+            </div>
+        </div>
+    </div>
+
+    {% if is_stub %}
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 2.5rem; text-align: center;">
+        <div style="width: 56px; height: 56px; border-radius: 50%; background: #ecfdf5; color: #059669; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem auto; font-size: 1.5rem;">
+            ✓
+        </div>
+        <h2 style="font-size: 1.5rem; color: #0f172a; margin-bottom: 0.5rem;">Step 3 Completed!</h2>
+        <p style="color: #64748b; max-width: 480px; margin: 0 auto 1.5rem auto; font-size: 0.95rem;">
+            Your banking details and cancelled cheque proof have been recorded. Step 4 (Company Policy Sign-Off) will be unlocked in the next phase.
+        </p>
+        <a href="{% url 'onboarding_wizard_step3' %}" class="btn ghost" style="padding: 0.6rem 1.25rem;">&larr; Back to Edit Step 3</a>
+        <a href="{% url 'dashboard' %}" class="btn" style="padding: 0.6rem 1.25rem; margin-left: 0.5rem; background: #0f766e; color: white;">Go to Dashboard</a>
+    </div>
+    {% else %}
+    <!-- Step 3 Form Card -->
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="margin: 0 0 0.5rem 0; font-size: 1.25rem; color: #0f172a;">Banking Details &amp; Disbursement Setup</h2>
+        <p style="margin: 0 0 1.75rem 0; color: #64748b; font-size: 0.875rem;">
+            Please provide your active bank account details where your monthly salary and compensation will be directly credited via NEFT/IMPS.
+        </p>
+
+        <form method="post" enctype="multipart/form-data" novalidate id="step3Form">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="toast error" role="alert" style="background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                    {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+                </div>
+            {% endif %}
+
+            <!-- Section 1: Account Holder & Bank Details -->
+            <fieldset style="border: none; padding: 0; margin: 0 0 2rem 0;">
+                <legend style="font-weight: 700; font-size: 1rem; color: #1e293b; border-bottom: 1px solid #e2e8f0; width: 100%; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                    1. Account Holder &amp; Institution
+                </legend>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label for="{{ form.account_holder_name.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                        Beneficiary / Account Holder Name <span style="color: #ef4444;">*</span>
+                    </label>
+                    {{ form.account_holder_name }}
+                    <small style="display: block; color: #64748b; margin-top: 0.25rem; font-size: 0.75rem;">Must match your official name on the bank passbook / cheque</small>
+                    {% for error in form.account_holder_name.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group">
+                        <label for="{{ form.bank_name.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                            Bank Name <span style="color: #ef4444;">*</span>
+                        </label>
+                        {{ form.bank_name }}
+                        {% for error in form.bank_name.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.branch_name.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                            Branch / City
+                        </label>
+                        {{ form.branch_name }}
+                        {% for error in form.branch_name.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label for="{{ form.ifsc_code.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                            11-Character IFSC Code <span style="color: #ef4444;">*</span>
+                        </label>
+                        {{ form.ifsc_code }}
+                        <small style="display: block; color: #64748b; margin-top: 0.25rem; font-size: 0.75rem;">Format: 4 letters, 0, 6 alphanumeric digits (e.g. HDFC0001234)</small>
+                        {% for error in form.ifsc_code.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.account_type.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                            Account Type <span style="color: #ef4444;">*</span>
+                        </label>
+                        {{ form.account_type }}
+                        {% for error in form.account_type.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- Section 2: Account Number Verification & Document -->
+            <fieldset style="border: none; padding: 0; margin: 0 0 2rem 0;">
+                <legend style="font-weight: 700; font-size: 1rem; color: #1e293b; border-bottom: 1px solid #e2e8f0; width: 100%; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                    2. Account Number &amp; Cheque Upload
+                </legend>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group">
+                        <label for="{{ form.account_number.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                            Bank Account Number <span style="color: #ef4444;">*</span>
+                        </label>
+                        {{ form.account_number }}
+                        <small style="display: block; color: #64748b; margin-top: 0.25rem; font-size: 0.75rem;">9 to 18 digits</small>
+                        {% for error in form.account_number.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.account_number_confirm.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                            Confirm Account Number <span style="color: #ef4444;">*</span>
+                        </label>
+                        {{ form.account_number_confirm }}
+                        <small style="display: block; color: #64748b; margin-top: 0.25rem; font-size: 0.75rem;">Re-type to prevent payment routing errors</small>
+                        {% for error in form.account_number_confirm.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.cheque_document.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                        Upload Cancelled Cheque or Bank Passbook Proof <span style="color: #ef4444;">*</span>
+                    </label>
+                    {{ form.cheque_document }}
+                    <small style="display: block; color: #64748b; margin-top: 0.25rem; font-size: 0.75rem;">Upload a clear photo or PDF scan of a cancelled cheque or the first page of your passbook showing your name, account number, and IFSC.</small>
+                    {% if profile.cheque_document %}
+                        <small style="display: block; color: #047857; margin-top: 0.25rem; font-size: 0.75rem;">Currently uploaded: {{ profile.cheque_document.name }}</small>
+                    {% endif %}
+                    {% for error in form.cheque_document.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                </div>
+            </fieldset>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 1.5rem; margin-top: 1rem;">
+                <a href="{% url 'onboarding_wizard_step2' %}" class="btn ghost" style="padding: 0.65rem 1.25rem;">&larr; Back to Step 2</a>
+                <button type="submit" class="btn btn-primary" style="padding: 0.65rem 1.75rem; background: #0f766e; color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">
+                    Save &amp; Continue to Step 4 &rarr;
+                </button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

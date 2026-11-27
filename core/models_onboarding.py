@@ -257,6 +257,48 @@ class OnboardingProfile(models.Model):
         help_text="12-digit Universal Account Number (if existing PF member)"
     )
 
+    # Step 3: Banking Details & Cheque Proof
+    bank_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Name of the bank (e.g. HDFC Bank, SBI, ICICI)"
+    )
+    branch_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Bank branch name or city"
+    )
+    account_holder_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Beneficiary name as registered with the bank"
+    )
+    account_number = models.CharField(
+        max_length=35,
+        blank=True,
+        help_text="Bank account number (9 to 18 digits)"
+    )
+    ifsc_code = models.CharField(
+        max_length=11,
+        blank=True,
+        help_text="11-character IFSC code (e.g. HDFC0001234)"
+    )
+    account_type = models.CharField(
+        max_length=20,
+        default="SALARY",
+        choices=[
+            ("SALARY", "Salary Account"),
+            ("SAVINGS", "Savings Account"),
+            ("CURRENT", "Current Account"),
+        ]
+    )
+    cheque_document = models.FileField(
+        upload_to="onboarding/documents/%Y/%m/",
+        blank=True,
+        null=True,
+        help_text="Uploaded cancelled cheque or bank passbook copy"
+    )
+
     # Step completion markers
     step_1_completed = models.BooleanField(default=False)
     step_2_completed = models.BooleanField(default=False)

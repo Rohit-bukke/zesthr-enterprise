@@ -324,4 +324,105 @@ class OnboardingStep2StatutoryForm(forms.ModelForm):
         return cleaned_data
 
 
+class OnboardingStep3BankingForm(forms.ModelForm):
+    """
+    Onboarding Wizard Step 3: Banking details & cancelled cheque / passbook upload.
+    """
+    account_number_confirm = forms.CharField(
+        max_length=35,
+        required=True,
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "Re-enter bank account number",
+            "autocomplete": "off",
+        }),
+        help_text="Confirm account number to prevent typo in salary disbursement.",
+    )
+
+    class Meta:
+        from core.models_onboarding import OnboardingProfile
+        model = OnboardingProfile
+        fields = [
+            "account_holder_name",
+            "bank_name",
+            "branch_name",
+            "account_number",
+            "account_number_confirm",
+            "ifsc_code",
+            "account_type",
+            "cheque_document",
+        ]
+        widgets = {
+            "account_holder_name": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Beneficiary name matching bank records",
+            }),
+            "bank_name": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "e.g. HDFC Bank, State Bank of India, ICICI Bank",
+            }),
+            "branch_name": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Branch name or city",
+            }),
+            "account_number": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "9 to 18 digits account number",
+                "autocomplete": "off",
+            }),
+            "ifsc_code": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "11-character IFSC (e.g. HDFC0001234)",
+                "maxlength": 11,
+                "style": "text-transform: uppercase;",
+            }),
+            "account_type": forms.Select(attrs={
+                "class": "form-control",
+            }),
+            "cheque_document": forms.FileInput(attrs={
+                "class": "form-control",
+                "accept": ".pdf,.jpg,.jpeg,.png",
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.account_number:
+            self.fields["account_number_confirm"].initial = self.instance.account_number
+
+    def clean_ifsc_code(self):
+        ifsc = self.cleaned_data.get("ifsc_code", "").strip().upper()
+        if not ifsc:
+            raise ValidationError("IFSC Code is required for bank transfers.")
+        import re
+        if not re.match(r"^[A-Z]{4}0[A-Z0-9]{6}$", ifsc):
+            raise ValidationError("Invalid IFSC format. Must be 11 characters (4 letters, 0, 6 alphanumeric digits, e.g. HDFC0001234).")
+        return ifsc
+
+    def clean_account_number(self):
+        acc = self.cleaned_data.get("account_number", "").strip()
+        if not acc:
+            raise ValidationError("Bank account number is required.")
+        import re
+        if not re.match(r"^[0-9]{9,18}$", acc):
+            raise ValidationError("Invalid account number. Must contain between 9 and 18 digits.")
+        return acc
+
+    def clean(self):
+        cleaned_data = super().clean()
+        acc = cleaned_data.get("account_number")
+        acc_confirm = cleaned_data.get("account_number_confirm")
+        cheque_doc = cleaned_data.get("cheque_document")
+
+        if acc and acc_confirm and acc != acc_confirm:
+            self.add_error("account_number_confirm", "Account numbers do not match.")
+
+        # Require cancelled cheque document if not already uploaded
+        if not cheque_doc and not (self.instance and self.instance.cheque_document):
+            self.add_error("cheque_document", "Please upload a copy of your cancelled cheque or passbook front page (PDF, PNG, JPG).")
+
+        return cleaned_data
+
+
+
 
