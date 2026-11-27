@@ -8,14 +8,23 @@ SECRET_KEY = env("DJANGO_SECRET_KEY", "dev-only-insecure-key-do-not-use-in-produ
 
 DEBUG = env_bool("DJANGO_DEBUG", True)
 
-ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]")
+ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,[::1],.vercel.app")
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": env("DJANGO_SQLITE_PATH", str(BASE_DIR / "db.sqlite3")),
+# If running on Vercel serverless, store SQLite in /tmp
+if env("VERCEL"):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": "/tmp/db.sqlite3",
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": env("DJANGO_SQLITE_PATH", str(BASE_DIR / "db.sqlite3")),
+        }
+    }
 
 # Emails are printed in the terminal instead of being sent.
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
