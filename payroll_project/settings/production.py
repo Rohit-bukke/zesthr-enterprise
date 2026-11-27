@@ -62,12 +62,19 @@ SECURE_REFERRER_POLICY = "same-origin"
 SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
 
 # ---------------------------------------------------------------------------
-# Database - Neon / hosted PostgreSQL
+# Database - Neon / hosted PostgreSQL or SQLite (if on Vercel temporary /tmp)
 # ---------------------------------------------------------------------------
 
 DATABASE_URL = env("DATABASE_URL", "").strip()
 
-if DATABASE_URL:
+if env("VERCEL") and not DATABASE_URL and not env("DB_NAME"):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": "/tmp/db.sqlite3",
+        }
+    }
+elif DATABASE_URL:
     _db = parse_database_url(DATABASE_URL)
 
 else:
@@ -80,37 +87,37 @@ else:
         "SSLMODE": None,
     }
 
+if not (env("VERCEL") and not DATABASE_URL and not env("DB_NAME")):
+    # Encrypted connection by default; set DB_SSLMODE=disable only for a database on the
+    # same private network (e.g. a local Docker container).
+    _sslmode = env("DB_SSLMODE") or _db.pop("SSLMODE", None) or "require"
+    if _sslmode not in ("disable", "allow", "prefer", "require", "verify-ca", "verify-full"):
+        raise ImproperlyConfigured(f"DB_SSLMODE={_sslmode!r} is not a valid PostgreSQL sslmode.")
+    _db.pop("SSLMODE", None)
 
-# Encrypted connection by default; set DB_SSLMODE=disable only for a database on the
-# same private network (e.g. a local Docker container).
-_sslmode = env("DB_SSLMODE") or _db.pop("SSLMODE", None) or "require"
-if _sslmode not in ("disable", "allow", "prefer", "require", "verify-ca", "verify-full"):
-    raise ImproperlyConfigured(f"DB_SSLMODE={_sslmode!r} is not a valid PostgreSQL sslmode.")
-_db.pop("SSLMODE", None)
+    # DB_POOLED=True is the one switch for serverless hosting (Vercel) or any connection pooler
+    # (Neon's "pooled" address, Supabase pooler, pgbouncer in transaction mode): every request may run
+    # in a fresh process, so connections are not kept open, server-side cursors are off, and
+    # psycopg does not prepare statements (a pooler may hand the next query to a different server).
+    _pooled = env_bool("DB_POOLED", False)
+    _options = {"sslmode": _sslmode, "connect_timeout": int(env("DB_CONNECT_TIMEOUT", "10"))}
+    if _pooled:
+        _options["prepare_threshold"] = None
 
-# DB_POOLED=True is the one switch for serverless hosting (Vercel) or any connection pooler
-# (Neon's "pooled" address, Supabase pooler, pgbouncer in transaction mode): every request may run
-# in a fresh process, so connections are not kept open, server-side cursors are off, and
-# psycopg does not prepare statements (a pooler may hand the next query to a different server).
-_pooled = env_bool("DB_POOLED", False)
-_options = {"sslmode": _sslmode, "connect_timeout": int(env("DB_CONNECT_TIMEOUT", "10"))}
-if _pooled:
-    _options["prepare_threshold"] = None
-
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        **_db,
-        "CONN_MAX_AGE": int(env("DB_CONN_MAX_AGE", "0" if _pooled else "60")),
-        "CONN_HEALTH_CHECKS": True,  # drop a persistent connection the server has closed
-        "DISABLE_SERVER_SIDE_CURSORS": env_bool("DB_DISABLE_SERVER_SIDE_CURSORS", _pooled),
-        "OPTIONS": _options,
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            **_db,
+            "CONN_MAX_AGE": int(env("DB_CONN_MAX_AGE", "0" if _pooled else "60")),
+            "CONN_HEALTH_CHECKS": True,  # drop a persistent connection the server has closed
+            "DISABLE_SERVER_SIDE_CURSORS": env_bool("DB_DISABLE_SERVER_SIDE_CURSORS", _pooled),
+            "OPTIONS": _options,
+        }
     }
-}
 
-if DATABASE_URL and _db['HOST'].endswith('.neon.tech'):
-    from .env import postgres_database
-    DATABASES = {'default': postgres_database(DATABASE_URL)}
+    if DATABASE_URL and _db.get('HOST', '').endswith('.neon.tech'):
+        from .env import postgres_database
+        DATABASES = {'default': postgres_database(DATABASE_URL)}
 
 # --- Static files -----------------------------------------------------------
 # Behind gunicorn (Docker, a VM) WhiteNoise serves them. On Vercel the CDN serves the files that
