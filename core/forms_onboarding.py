@@ -234,3 +234,94 @@ class OnboardingStep1PersonalForm(forms.ModelForm):
         return cleaned_data
 
 
+class OnboardingStep2StatutoryForm(forms.ModelForm):
+    """
+    Onboarding Wizard Step 2: Statutory compliance & document collection (PAN, Aadhaar, UAN).
+    """
+    class Meta:
+        from core.models_onboarding import OnboardingProfile
+        model = OnboardingProfile
+        fields = [
+            "pan_number",
+            "pan_document",
+            "aadhaar_number",
+            "aadhaar_document",
+            "has_existing_uan",
+            "uan_number",
+        ]
+        widgets = {
+            "pan_number": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "e.g. ABCDE1234F",
+                "maxlength": 10,
+                "style": "text-transform: uppercase;",
+            }),
+            "pan_document": forms.FileInput(attrs={
+                "class": "form-control",
+                "accept": ".pdf,.jpg,.jpeg,.png",
+            }),
+            "aadhaar_number": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "12-digit Aadhaar number",
+                "maxlength": 12,
+            }),
+            "aadhaar_document": forms.FileInput(attrs={
+                "class": "form-control",
+                "accept": ".pdf,.jpg,.jpeg,.png",
+            }),
+            "has_existing_uan": forms.CheckboxInput(attrs={
+                "class": "form-check-input",
+            }),
+            "uan_number": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "12-digit existing UAN",
+                "maxlength": 12,
+            }),
+        }
+
+    def clean_pan_number(self):
+        pan = self.cleaned_data.get("pan_number", "").strip().upper()
+        if not pan:
+            raise ValidationError("Permanent Account Number (PAN) is mandatory for statutory compliance.")
+        import re
+        pan_regex = re.compile(r"^[A-Z]{5}[0-9]{4}[A-Z]{1}$")
+        if not pan_regex.match(pan):
+            raise ValidationError("Invalid PAN format. Must be 5 letters, 4 digits, 1 letter (e.g. ABCDE1234F).")
+        return pan
+
+    def clean_aadhaar_number(self):
+        aadhaar = self.cleaned_data.get("aadhaar_number", "").strip()
+        if not aadhaar:
+            raise ValidationError("Aadhaar number is mandatory for statutory identity verification.")
+        import re
+        if not re.match(r"^\d{12}$", aadhaar):
+            raise ValidationError("Invalid Aadhaar number. Must be exactly 12 digits.")
+        return aadhaar
+
+    def clean_uan_number(self):
+        has_uan = self.cleaned_data.get("has_existing_uan", False)
+        uan = self.cleaned_data.get("uan_number", "").strip()
+        if has_uan:
+            if not uan:
+                raise ValidationError("Please provide your 12-digit existing UAN, or uncheck 'I have an existing UAN'.")
+            import re
+            if not re.match(r"^\d{12}$", uan):
+                raise ValidationError("Invalid UAN format. Must be exactly 12 digits.")
+            return uan
+        return ""
+
+    def clean(self):
+        cleaned_data = super().clean()
+        pan_doc = cleaned_data.get("pan_document")
+        aadhaar_doc = cleaned_data.get("aadhaar_document")
+
+        # Require document upload if not already present on instance
+        if not pan_doc and not (self.instance and self.instance.pan_document):
+            self.add_error("pan_document", "Please upload a copy of your PAN Card (PDF, PNG, JPG).")
+        if not aadhaar_doc and not (self.instance and self.instance.aadhaar_document):
+            self.add_error("aadhaar_document", "Please upload a copy of your Aadhaar Card (PDF, PNG, JPG).")
+
+        return cleaned_data
+
+
+

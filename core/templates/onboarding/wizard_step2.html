@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}Onboarding Wizard - Step 2: Statutory Compliance | {{ profile.organization.name }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 860px; margin: 1.5rem auto; padding: 0 1rem;">
+
+    <!-- Wizard Header & Progress Bar -->
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
+            <div>
+                <span class="hros-pill-badge" style="background: #e0f2fe; color: #0369a1; font-weight: 600; font-size: 0.75rem; padding: 0.25rem 0.6rem; border-radius: 9999px;">
+                    CANDIDATE ONBOARDING
+                </span>
+                <h1 style="margin: 0.35rem 0 0 0; font-size: 1.5rem; color: #0f172a;">Welcome to {{ profile.organization.name }}</h1>
+                <p style="margin: 0.25rem 0 0 0; color: #64748b; font-size: 0.875rem;">
+                    Role: <strong>{% if invitation.position %}{{ invitation.position.title }}{% else %}Team Member{% endif %}</strong>
+                    {% if invitation.department %} &bull; {{ invitation.department.name }}{% endif %}
+                    &bull; Expected Joining: <strong>{{ invitation.proposed_joining_date|date:"d M Y" }}</strong>
+                </p>
+            </div>
+            <div style="text-align: right;">
+                <span style="font-size: 0.875rem; font-weight: 600; color: #0f766e;">Step {{ step }} of {{ total_steps }}</span>
+            </div>
+        </div>
+
+        <!-- Step Indicator Track -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-top: 1rem;">
+            <a href="{% url 'onboarding_wizard_step1' %}" style="text-decoration: none; padding: 0.6rem; border-radius: 8px; background: #f0fdf4; border: 1px solid #86efac; text-align: center;">
+                <span style="display: block; font-size: 0.75rem; font-weight: 600; color: #15803d;">✓ STEP 1</span>
+                <span style="font-size: 0.825rem; font-weight: 600; color: #166534;">Personal Details</span>
+            </a>
+            <div style="padding: 0.6rem; border-radius: 8px; background: #f0fdf4; border: 2px solid #0f766e; text-align: center;">
+                <span style="display: block; font-size: 0.75rem; font-weight: 600; color: #0f766e;">STEP 2</span>
+                <span style="font-size: 0.825rem; font-weight: 600; color: #0f766e;">Statutory Compliance</span>
+            </div>
+            <div style="padding: 0.6rem; border-radius: 8px; background: {% if profile.step_3_completed %}#f0fdf4; border: 1px solid #86efac;{% else %}#f8fafc; border: 1px solid #cbd5e1;{% endif %} text-align: center;">
+                <span style="display: block; font-size: 0.75rem; font-weight: 600; color: #64748b;">STEP 3</span>
+                <span style="font-size: 0.825rem; color: #475569;">Bank Account</span>
+            </div>
+            <div style="padding: 0.6rem; border-radius: 8px; background: {% if profile.step_4_completed %}#f0fdf4; border: 1px solid #86efac;{% else %}#f8fafc; border: 1px solid #cbd5e1;{% endif %} text-align: center;">
+                <span style="display: block; font-size: 0.75rem; font-weight: 600; color: #64748b;">STEP 4</span>
+                <span style="font-size: 0.825rem; color: #475569;">Policy Sign-Off</span>
+            </div>
+        </div>
+    </div>
+
+    {% if is_stub %}
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 2.5rem; text-align: center;">
+        <div style="width: 56px; height: 56px; border-radius: 50%; background: #ecfdf5; color: #059669; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem auto; font-size: 1.5rem;">
+            ✓
+        </div>
+        <h2 style="font-size: 1.5rem; color: #0f172a; margin-bottom: 0.5rem;">Step 2 Completed!</h2>
+        <p style="color: #64748b; max-width: 480px; margin: 0 auto 1.5rem auto; font-size: 0.95rem;">
+            Your statutory identification documents have been recorded. Step 3 (Bank Account Details &amp; Cheque Upload) will be unlocked in the next phase.
+        </p>
+        <a href="{% url 'onboarding_wizard_step2' %}" class="btn ghost" style="padding: 0.6rem 1.25rem;">&larr; Back to Edit Step 2</a>
+        <a href="{% url 'dashboard' %}" class="btn" style="padding: 0.6rem 1.25rem; margin-left: 0.5rem; background: #0f766e; color: white;">Go to Dashboard</a>
+    </div>
+    {% else %}
+    <!-- Step 2 Form Card -->
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="margin: 0 0 0.5rem 0; font-size: 1.25rem; color: #0f172a;">Statutory Compliance &amp; Document Collection</h2>
+        <p style="margin: 0 0 1.75rem 0; color: #64748b; font-size: 0.875rem;">
+            Indian regulatory compliance mandates tax identification (PAN) and identity verification (Aadhaar). If you already have an active Provident Fund UAN, please share it to prevent duplicate accounts.
+        </p>
+
+        <form method="post" enctype="multipart/form-data" novalidate id="step2Form">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="toast error" role="alert" style="background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                    {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+                </div>
+            {% endif %}
+
+            <!-- Section 1: Income Tax PAN -->
+            <fieldset style="border: none; padding: 0; margin: 0 0 2rem 0;">
+                <legend style="font-weight: 700; font-size: 1rem; color: #1e293b; border-bottom: 1px solid #e2e8f0; width: 100%; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                    1. Permanent Account Number (PAN)
+                </legend>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label for="{{ form.pan_number.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                            PAN Number (10 Characters) <span style="color: #ef4444;">*</span>
+                        </label>
+                        {{ form.pan_number }}
+                        <small style="display: block; color: #64748b; margin-top: 0.25rem; font-size: 0.75rem;">Format: 5 letters, 4 digits, 1 letter (e.g. ABCDE1234F)</small>
+                        {% for error in form.pan_number.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.pan_document.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                            Upload PAN Card Proof <span style="color: #ef4444;">*</span>
+                        </label>
+                        {{ form.pan_document }}
+                        {% if profile.pan_document %}
+                            <small style="display: block; color: #047857; margin-top: 0.25rem; font-size: 0.75rem;">Currently uploaded: {{ profile.pan_document.name }}</small>
+                        {% endif %}
+                        {% for error in form.pan_document.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- Section 2: Aadhaar Identity -->
+            <fieldset style="border: none; padding: 0; margin: 0 0 2rem 0;">
+                <legend style="font-weight: 700; font-size: 1rem; color: #1e293b; border-bottom: 1px solid #e2e8f0; width: 100%; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                    2. Unique Identification (Aadhaar)
+                </legend>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label for="{{ form.aadhaar_number.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                            Aadhaar Number (12 Digits) <span style="color: #ef4444;">*</span>
+                        </label>
+                        {{ form.aadhaar_number }}
+                        <small style="display: block; color: #64748b; margin-top: 0.25rem; font-size: 0.75rem;">12-digit number without spaces</small>
+                        {% for error in form.aadhaar_number.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.aadhaar_document.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                            Upload Aadhaar Card Proof <span style="color: #ef4444;">*</span>
+                        </label>
+                        {{ form.aadhaar_document }}
+                        {% if profile.aadhaar_document %}
+                            <small style="display: block; color: #047857; margin-top: 0.25rem; font-size: 0.75rem;">Currently uploaded: {{ profile.aadhaar_document.name }}</small>
+                        {% endif %}
+                        {% for error in form.aadhaar_document.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- Section 3: Universal Account Number (EPFO UAN) -->
+            <fieldset style="border: none; padding: 0; margin: 0 0 2rem 0;">
+                <legend style="font-weight: 700; font-size: 1rem; color: #1e293b; border-bottom: 1px solid #e2e8f0; width: 100%; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                    3. Provident Fund (EPFO UAN)
+                </legend>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.875rem; color: #334155; font-weight: 500;">
+                        {{ form.has_existing_uan }}
+                        I already have an existing EPFO Universal Account Number (UAN) from previous employment
+                    </label>
+                </div>
+
+                <div class="form-group" id="uanInputGroup" style="margin-bottom: 1rem; {% if not form.has_existing_uan.value %}display: none;{% endif %}">
+                    <label for="{{ form.uan_number.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                        12-Digit UAN Number
+                    </label>
+                    {{ form.uan_number }}
+                    <small style="display: block; color: #64748b; margin-top: 0.25rem; font-size: 0.75rem;">Your 12-digit EPFO member identifier</small>
+                    {% for error in form.uan_number.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                </div>
+            </fieldset>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 1.5rem; margin-top: 1rem;">
+                <a href="{% url 'onboarding_wizard_step1' %}" class="btn ghost" style="padding: 0.65rem 1.25rem;">&larr; Back to Step 1</a>
+                <button type="submit" class="btn btn-primary" style="padding: 0.65rem 1.75rem; background: #0f766e; color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">
+                    Save &amp; Continue to Step 3 &rarr;
+                </button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const uanCheckbox = document.getElementById("{{ form.has_existing_uan.id_for_label }}");
+    const uanGroup = document.getElementById("uanInputGroup");
+
+    if (uanCheckbox && uanGroup) {
+        uanCheckbox.addEventListener("change", function() {
+            uanGroup.style.display = this.checked ? "block" : "none";
+        });
+    }
+});
+</script>
+{% endblock %}

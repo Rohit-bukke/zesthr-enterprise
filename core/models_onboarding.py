@@ -224,6 +224,39 @@ class OnboardingProfile(models.Model):
     emergency_contact_phone = models.CharField(max_length=20, blank=True)
     emergency_contact_alt_phone = models.CharField(max_length=20, blank=True)
 
+    # Step 2: Statutory Compliance & Identity Details
+    pan_number = models.CharField(
+        max_length=10,
+        blank=True,
+        help_text="10-character Permanent Account Number (e.g. ABCDE1234F)"
+    )
+    pan_document = models.FileField(
+        upload_to="onboarding/documents/%Y/%m/",
+        blank=True,
+        null=True,
+        help_text="Uploaded PAN card image or PDF proof"
+    )
+    aadhaar_number = models.CharField(
+        max_length=12,
+        blank=True,
+        help_text="12-digit Aadhaar unique identification number"
+    )
+    aadhaar_document = models.FileField(
+        upload_to="onboarding/documents/%Y/%m/",
+        blank=True,
+        null=True,
+        help_text="Uploaded Aadhaar card image or PDF proof"
+    )
+    has_existing_uan = models.BooleanField(
+        default=False,
+        help_text="Whether candidate already has an existing EPFO UAN"
+    )
+    uan_number = models.CharField(
+        max_length=12,
+        blank=True,
+        help_text="12-digit Universal Account Number (if existing PF member)"
+    )
+
     # Step completion markers
     step_1_completed = models.BooleanField(default=False)
     step_2_completed = models.BooleanField(default=False)

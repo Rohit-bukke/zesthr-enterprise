@@ -17,9 +17,11 @@ from core.forms_onboarding import (
     CandidateInvitationForm,
     CandidateRegistrationForm,
     OnboardingStep1PersonalForm,
+    OnboardingStep2StatutoryForm,
 )
 from core.models import Employee
 from core.models_onboarding import CandidateInvitation, OnboardingProfile
+from core.models_statutory import EmployeeStatutoryProfile
 
 
 def _can_manage_onboarding(user):
@@ -383,25 +385,94 @@ def onboarding_wizard_step1(request):
 
 
 @login_required
-def onboarding_wizard_step2_stub(request):
+def onboarding_wizard_step2(request):
     """
-    Placeholder route for Step 2 (Statutory Compliance), implemented in Phase 5.
+    Multi-Step Onboarding Wizard - Step 2: Statutory Compliance & Document Collection.
+    Collects PAN, Aadhaar, and UAN with document proofs. Integrates directly with EmployeeStatutoryProfile.
+    """
+    profile = _get_candidate_onboarding_profile(request.user)
+    if not profile:
+        messages.info(request, "No active onboarding checklist found for your account.")
+        return redirect("dashboard")
+
+    if request.method == "POST":
+        form = OnboardingStep2StatutoryForm(request.POST, request.FILES, instance=profile)
+        if form.is_valid():
+            profile = form.save(commit=False)
+            profile.step_2_completed = True
+            if profile.current_step <= OnboardingProfile.STEP_2_STATUTORY:
+                profile.current_step = OnboardingProfile.STEP_3_BANKING
+            profile.save()
+
+            # Integrate with EmployeeStatutoryProfile
+            if hasattr(request.user, "employee_profile") and request.user.employee_profile:
+                emp = request.user.employee_profile
+                stat_profile, _ = EmployeeStatutoryProfile.objects.get_or_create(
+                    employee=emp,
+                    defaults={
+                        "pan_number": profile.pan_number,
+                        "uan_number": profile.uan_number,
+                        "epf_enrolled": True,
+                        "esi_enrolled": True,
+                        "pt_enrolled": True,
+                    }
+                )
+                stat_profile.pan_number = profile.pan_number
+                stat_profile.uan_number = profile.uan_number
+                stat_profile.save()
+
+            messages.success(request, "Step 2: Statutory compliance & document proofs saved successfully.")
+            return redirect("onboarding_wizard_step3")
+    else:
+        # Pre-fill from existing statutory profile if available
+        initial = {}
+        if hasattr(request.user, "employee_profile") and request.user.employee_profile:
+            emp = request.user.employee_profile
+            stat_profile = getattr(emp, "statutory_profile", None)
+            if stat_profile:
+                if not profile.pan_number and stat_profile.pan_number:
+                    initial["pan_number"] = stat_profile.pan_number
+                if not profile.uan_number and stat_profile.uan_number:
+                    initial["uan_number"] = stat_profile.uan_number
+                    initial["has_existing_uan"] = bool(stat_profile.uan_number)
+
+        form = OnboardingStep2StatutoryForm(instance=profile, initial=initial)
+
+    return render(
+        request,
+        "onboarding/wizard_step2.html",
+        {
+            "profile": profile,
+            "invitation": profile.invitation,
+            "form": form,
+            "step": 2,
+            "total_steps": 4,
+            "title": "Onboarding Wizard - Step 2: Statutory Compliance",
+        }
+    )
+
+
+@login_required
+def onboarding_wizard_step3_stub(request):
+    """
+    Placeholder route for Step 3 (Banking Details), implemented in Phase 6.
     """
     profile = _get_candidate_onboarding_profile(request.user)
     if not profile:
         return redirect("dashboard")
     return render(
         request,
-        "onboarding/wizard_step1.html",
+        "onboarding/wizard_step2.html",
         {
             "profile": profile,
             "invitation": profile.invitation,
-            "step": 2,
+            "step": 3,
             "total_steps": 4,
             "is_stub": True,
-            "title": "Onboarding Wizard - Step 2: Statutory Compliance",
+            "title": "Onboarding Wizard - Step 3: Banking Details",
         }
     )
+
 
 
 
