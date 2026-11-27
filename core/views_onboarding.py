@@ -25,6 +25,7 @@ from core.models import Employee
 from core.models_banking import EmployeeBankAccount
 from core.models_onboarding import CandidateInvitation, OnboardingProfile
 from core.models_statutory import EmployeeStatutoryProfile
+from core.services.onboarding import instantiate_onboarding_workflow
 
 
 def _can_manage_onboarding(user):
@@ -279,7 +280,10 @@ def candidate_landing(request, token):
                     }
                 )
 
-                # 6. Log the user in
+                # 6. Instantiate Onboarding Checklist & Provisioning Tasks
+                instantiate_onboarding_workflow(invitation, employee=employee)
+
+                # 7. Log the user in
                 login(request, user, backend="django.contrib.auth.backends.ModelBackend")
 
                 messages.success(
@@ -752,6 +756,9 @@ def onboarding_review_action(request, pk):
             if not profile.user.is_active:
                 profile.user.is_active = True
                 profile.user.save(update_fields=["is_active"])
+
+            # Ensure checklist & provisioning tasks are instantiated
+            instantiate_onboarding_workflow(profile.invitation, employee=emp)
 
             messages.success(
                 request,
