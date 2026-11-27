@@ -480,7 +480,7 @@ class ExpenseClaimAdmin(admin.ModelAdmin):
     search_fields = ("claim_number", "employee__name", "title")
 
 
-from .models_onboarding import CandidateInvitation
+from .models_onboarding import CandidateInvitation, OnboardingChecklist, OnboardingTask, OnboardingProfile
 
 
 @admin.register(CandidateInvitation)
@@ -489,5 +489,28 @@ class CandidateInvitationAdmin(TenantAdmin):
     list_filter = ("status", "department", "proposed_joining_date")
     search_fields = ("first_name", "last_name", "email", "token")
     readonly_fields = ("token", "created_at", "accepted_at")
+
+
+class OnboardingTaskInline(admin.TabularInline):
+    model = OnboardingTask
+    extra = 1
+    fields = ("department_role", "title", "due_date", "status", "completed_by", "completed_at")
+    readonly_fields = ("completed_at",)
+
+
+@admin.register(OnboardingChecklist)
+class OnboardingChecklistAdmin(TenantAdmin):
+    list_display = ("title", "organization", "invitation", "employee", "status", "target_date", "created_at")
+    list_filter = ("status", "organization", "target_date")
+    search_fields = ("title", "invitation__first_name", "invitation__last_name", "employee__name")
+    inlines = [OnboardingTaskInline]
+
+
+@admin.register(OnboardingTask)
+class OnboardingTaskAdmin(admin.ModelAdmin):
+    list_display = ("title", "checklist", "department_role", "due_date", "status", "completed_by", "completed_at")
+    list_filter = ("department_role", "status", "due_date")
+    search_fields = ("title", "checklist__title", "notes")
+
 
 
