@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Candidate Invitations | HROS{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Candidate Pre-Onboarding Invitations</h1>
+    <p>Dispatch secure, time-expiring invitation links to prospective new hires before their start date.</p>
+  </div>
+  <a class="btn" href="{% url 'onboarding_invitation_create' %}">+ Invite New Candidate</a>
+</div>
+
+<!-- Status Filters & Search Bar -->
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <a href="?status=all" class="btn {% if current_status == 'all' %}{% else %}ghost{% endif %}" style="padding:4px 10px;font-size:0.85rem;">All ({{ counts.all }})</a>
+    <a href="?status=invited" class="btn {% if current_status == 'invited' %}{% else %}ghost{% endif %}" style="padding:4px 10px;font-size:0.85rem;">Active Invites ({{ counts.invited }})</a>
+    <a href="?status=accepted" class="btn {% if current_status == 'accepted' %}{% else %}ghost{% endif %}" style="padding:4px 10px;font-size:0.85rem;">Accepted ({{ counts.accepted }})</a>
+    <a href="?status=expired" class="btn {% if current_status == 'expired' %}{% else %}ghost{% endif %}" style="padding:4px 10px;font-size:0.85rem;">Expired ({{ counts.expired }})</a>
+    <a href="?status=revoked" class="btn {% if current_status == 'revoked' %}{% else %}ghost{% endif %}" style="padding:4px 10px;font-size:0.85rem;">Revoked ({{ counts.revoked }})</a>
+  </div>
+  <form method="get" style="display:flex;gap:6px;">
+    <input type="text" name="q" value="{{ search_query }}" placeholder="Search by candidate name or email..." style="padding:6px 12px;border:1px solid #cbd5e1;border-radius:6px;min-width:240px;">
+    <button type="submit" class="btn ghost">Search</button>
+  </form>
+</div>
+
+<!-- Invitations Table -->
+<section class="card">
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Candidate</th>
+          <th>Role &amp; Department</th>
+          <th>Joining Date</th>
+          <th>Status</th>
+          <th>Expires On</th>
+          <th>Invitation Link</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for invite in page_obj %}
+        <tr>
+          <td>
+            <b>{{ invite.full_name }}</b><br>
+            <small style="color:#64748b;">{{ invite.email }}</small>
+            {% if invite.phone %}<br><small style="color:#94a3b8;">{{ invite.phone }}</small>{% endif %}
+          </td>
+          <td>
+            <b>{{ invite.position.title|default:"-" }}</b><br>
+            <small style="color:#64748b;">{{ invite.department.name|default:"General" }}</small>
+          </td>
+          <td><b>{{ invite.proposed_joining_date|date:"d M Y" }}</b></td>
+          <td>
+            {% if invite.status == "ACCEPTED" %}
+              <span class="badge" style="background:#dcfce7;color:#15803d;">Accepted</span>
+            {% elif invite.status == "REVOKED" %}
+              <span class="badge" style="background:#fee2e2;color:#b91c1c;">Revoked</span>
+            {% elif invite.status == "EXPIRED" or invite.expires_at <= now %}
+              <span class="badge" style="background:#f1f5f9;color:#64748b;">Expired</span>
+            {% else %}
+              <span class="badge" style="background:#e0f2fe;color:#0369a1;">Active Invite</span>
+            {% endif %}
+          </td>
+          <td>
+            {{ invite.expires_at|date:"d M Y, H:i" }}
+            {% if invite.status == "INVITED" and invite.expires_at > now %}
+              <br><small style="color:#10b981;">Valid</small>
+            {% endif %}
+          </td>
+          <td>
+            {% if invite.status == "INVITED" and invite.expires_at > now %}
+              <button type="button" class="btn ghost" style="padding:3px 8px;font-size:0.8rem;" onclick="navigator.clipboard.writeText('{{ request.scheme }}://{{ request.get_host }}{% url 'onboarding_candidate_landing' invite.token %}');alert('Candidate invitation link copied to clipboard!');">📋 Copy Link</button>
+            {% elif invite.status == "ACCEPTED" %}
+              <span style="color:#16a34a;font-size:0.85rem;">✓ Onboarding In Progress</span>
+            {% else %}
+              <span style="color:#94a3b8;font-size:0.85rem;">Link Inactive</span>
+            {% endif %}
+          </td>
+          <td>
+            <form method="post" action="{% url 'onboarding_invitation_action' invite.pk %}" style="display:inline-flex;gap:6px;">
+              {% csrf_token %}
+              {% if invite.status == "INVITED" and invite.expires_at > now %}
+                <button type="submit" name="action" value="revoke" class="btn ghost danger" style="padding:3px 8px;font-size:0.8rem;" onclick="return confirm('Revoke this invitation link? The candidate will no longer be able to use it.');">Revoke</button>
+              {% else %}
+                <button type="submit" name="action" value="resend" class="btn ghost" style="padding:3px 8px;font-size:0.8rem;" onclick="return confirm('Refresh and extend this invitation for another 72 hours?');">🔄 Re-invite</button>
+              {% endif %}
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7">No candidate invitations found matching the selected filter.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if page_obj.has_other_pages %}
+  <nav aria-label="Pagination" style="margin-top:16px;display:flex;gap:8px;justify-content:center;align-items:center;">
+    {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}&status={{ current_status }}&q={{ search_query }}" class="btn ghost">&larr; Previous</a>
+    {% endif %}
+    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}&status={{ current_status }}&q={{ search_query }}" class="btn ghost">Next &rarr;</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+</section>
+{% endblock %}

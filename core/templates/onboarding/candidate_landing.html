@@ -1,0 +1,147 @@
+{% extends "auth_base.html" %}
+
+{% block title %}Accept Invitation | {{ invitation.organization.name }}{% endblock %}
+
+{% block art_extra %}
+<div style="margin-top: 1.5rem; padding: 1rem; background: rgba(255, 255, 255, 0.08); border-radius: 8px; border-left: 4px solid #38bdf8;">
+    <h3 style="margin: 0 0 0.5rem 0; font-size: 1rem; color: #fff;">Pre-Onboarding Setup</h3>
+    <p style="margin: 0; font-size: 0.875rem; color: #cbd5e1; line-height: 1.4;">
+        Welcome to <strong>{{ invitation.organization.name }}</strong>! Complete this quick 1-minute step to create your profile credentials and start your onboarding journey.
+    </p>
+</div>
+{% endblock %}
+
+{% block card %}
+<div class="login-card" style="max-width: 540px; margin: 0 auto;">
+    {% if not invitation_valid %}
+        <div class="auth-header" style="text-align: center; margin-bottom: 1.5rem;">
+            <div style="width: 56px; height: 56px; border-radius: 50%; background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem auto; font-size: 1.75rem;">
+                ✕
+            </div>
+            <h2 style="font-size: 1.5rem; margin-bottom: 0.5rem; color: #991b1b;">Invitation Unavailable</h2>
+            <p class="login-subtext" style="color: #4b5563;">
+                {{ error_message|default:"This invitation link is invalid, has expired, or has already been accepted." }}
+            </p>
+        </div>
+
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; font-size: 0.875rem; color: #64748b;">
+            <p style="margin: 0 0 0.5rem 0;"><strong>Need a new invitation link?</strong></p>
+            <p style="margin: 0;">Please contact your HR team or hiring manager at <strong>{{ invitation.organization.name }}</strong> to re-issue an invitation link.</p>
+        </div>
+
+        <div style="text-align: center;">
+            <a href="{% url 'login' %}" class="btn btn-outline" style="display: inline-block; padding: 0.6rem 1.25rem; border: 1px solid #cbd5e1; border-radius: 6px; text-decoration: none; color: #334155; font-weight: 500;">
+                Return to Login
+            </a>
+        </div>
+    {% else %}
+        <div class="auth-header" style="margin-bottom: 1.5rem;">
+            <span class="hros-pill-badge" style="background: #ecfdf5; color: #047857; font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.6rem; border-radius: 9999px; display: inline-block; margin-bottom: 0.5rem;">
+                OFFICIAL INVITATION
+            </span>
+            <h2 style="font-size: 1.5rem; margin-bottom: 0.25rem;">Welcome, {{ invitation.first_name }}!</h2>
+            <p class="login-subtext" style="color: #64748b; font-size: 0.9rem;">
+                You have been invited to join <strong>{{ invitation.organization.name }}</strong> as
+                <strong>{% if invitation.position %}{{ invitation.position.title }}{% else %}Team Member{% endif %}</strong>
+                {% if invitation.department %} in {{ invitation.department.name }}{% endif %}.
+            </p>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.875rem; margin-bottom: 1.5rem; font-size: 0.825rem;">
+            <div>
+                <span style="color: #64748b; display: block;">Expected Joining:</span>
+                <strong style="color: #0f172a;">{{ invitation.proposed_joining_date|date:"d M Y" }}</strong>
+            </div>
+            <div>
+                <span style="color: #64748b; display: block;">Invitation Valid Until:</span>
+                <strong style="color: #0f172a;">{{ invitation.expires_at|date:"d M Y, H:i" }}</strong>
+            </div>
+        </div>
+
+        <form method="post" novalidate>
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="toast error" role="alert" style="background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem;">
+                    {% for error in form.non_field_errors %}
+                        <div>{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="form-grid" style="display: flex; flex-direction: column; gap: 1rem;">
+                <div class="form-group">
+                    <label style="display: block; font-weight: 500; font-size: 0.875rem; margin-bottom: 0.25rem;">Email Address (Verified)</label>
+                    <input type="email" value="{{ invitation.email }}" disabled style="width: 100%; padding: 0.6rem 0.75rem; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; color: #475569; font-size: 0.9rem;">
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.username.id_for_label }}" style="display: block; font-weight: 500; font-size: 0.875rem; margin-bottom: 0.25rem;">
+                        Username <span style="color: #ef4444;">*</span>
+                    </label>
+                    {{ form.username }}
+                    {% for error in form.username.errors %}
+                        <div class="field-error" style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>
+                    {% endfor %}
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label for="{{ form.first_name.id_for_label }}" style="display: block; font-weight: 500; font-size: 0.875rem; margin-bottom: 0.25rem;">
+                            First Name <span style="color: #ef4444;">*</span>
+                        </label>
+                        {{ form.first_name }}
+                        {% for error in form.first_name.errors %}
+                            <div class="field-error" style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.last_name.id_for_label }}" style="display: block; font-weight: 500; font-size: 0.875rem; margin-bottom: 0.25rem;">
+                            Last Name <span style="color: #ef4444;">*</span>
+                        </label>
+                        {{ form.last_name }}
+                        {% for error in form.last_name.errors %}
+                            <div class="field-error" style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.phone.id_for_label }}" style="display: block; font-weight: 500; font-size: 0.875rem; margin-bottom: 0.25rem;">Phone Number</label>
+                    {{ form.phone }}
+                    {% for error in form.phone.errors %}
+                        <div class="field-error" style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>
+                    {% endfor %}
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label for="{{ form.password.id_for_label }}" style="display: block; font-weight: 500; font-size: 0.875rem; margin-bottom: 0.25rem;">
+                            Password <span style="color: #ef4444;">*</span>
+                        </label>
+                        {{ form.password }}
+                        {% for error in form.password.errors %}
+                            <div class="field-error" style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.password_confirm.id_for_label }}" style="display: block; font-weight: 500; font-size: 0.875rem; margin-bottom: 0.25rem;">
+                            Confirm Password <span style="color: #ef4444;">*</span>
+                        </label>
+                        {{ form.password_confirm }}
+                        {% for error in form.password_confirm.errors %}
+                            <div class="field-error" style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 1.5rem;">
+                <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.75rem 1rem; background: #0f766e; color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: background 0.15s ease;">
+                    Accept Invitation &amp; Continue →
+                </button>
+            </div>
+        </form>
+    {% endif %}
+</div>
+{% endblock %}

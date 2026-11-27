@@ -6,6 +6,7 @@ from . import views_documents
 from . import views_payroll
 from . import views_compensation
 from . import views_leave
+from . import views_onboarding
 from django.contrib.auth import views as auth
 from django.contrib.auth.decorators import login_required
 from django.urls import path
@@ -104,4 +105,9 @@ urlpatterns = [
     v.attendance_report_csv,
     name="attendance_report_csv",
 ),
+    # Onboarding & Invitations (Interactive Onboarding Engine)
+    path("onboarding/invitations/", views_onboarding.invitations_list, name="onboarding_invitations"),
+    path("onboarding/invitations/new/", views_onboarding.invitation_create, name="onboarding_invitation_create"),
+    path("onboarding/invitations/<int:pk>/action/", views_onboarding.invitation_action, name="onboarding_invitation_action"),
+    path("onboarding/invite/<uuid:token>/", views_onboarding.candidate_landing, name="onboarding_candidate_landing"),
 ]

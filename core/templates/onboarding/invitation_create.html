@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Invite Candidate | HROS{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Send Pre-Onboarding Invitation</h1>
+    <p>Generate a unique onboarding invitation link for a prospective new hire.</p>
+  </div>
+  <a class="btn ghost" href="{% url 'onboarding_invitations' %}">&larr; Back to Invitations</a>
+</div>
+
+<section class="card" style="max-width:680px;">
+  <form method="post">
+    {% csrf_token %}
+    
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <p>
+        <label for="{{ form.first_name.id_for_label }}"><strong>First Name</strong></label>
+        <input type="text" name="{{ form.first_name.name }}" id="{{ form.first_name.id_for_label }}" value="{{ form.first_name.value|default:'' }}" required placeholder="e.g. Rohan" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+        {% if form.first_name.errors %}<small style="color:#ef4444;">{{ form.first_name.errors|striptags }}</small>{% endif %}
+      </p>
+
+      <p>
+        <label for="{{ form.last_name.id_for_label }}"><strong>Last Name</strong></label>
+        <input type="text" name="{{ form.last_name.name }}" id="{{ form.last_name.id_for_label }}" value="{{ form.last_name.value|default:'' }}" required placeholder="e.g. Deshmukh" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+        {% if form.last_name.errors %}<small style="color:#ef4444;">{{ form.last_name.errors|striptags }}</small>{% endif %}
+      </p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <p>
+        <label for="{{ form.email.id_for_label }}"><strong>Candidate Email</strong></label>
+        <input type="email" name="{{ form.email.name }}" id="{{ form.email.id_for_label }}" value="{{ form.email.value|default:'' }}" required placeholder="rohan.deshmukh@example.com" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+        {% if form.email.errors %}<small style="color:#ef4444;">{{ form.email.errors|striptags }}</small>{% endif %}
+      </p>
+
+      <p>
+        <label for="{{ form.phone.id_for_label }}"><strong>Contact Number (Optional)</strong></label>
+        <input type="text" name="{{ form.phone.name }}" id="{{ form.phone.id_for_label }}" value="{{ form.phone.value|default:'' }}" placeholder="+91 9876543210" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+        {% if form.phone.errors %}<small style="color:#ef4444;">{{ form.phone.errors|striptags }}</small>{% endif %}
+      </p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <p>
+        <label for="{{ form.department.id_for_label }}"><strong>Target Department</strong></label>
+        <select name="{{ form.department.name }}" id="{{ form.department.id_for_label }}" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+          <option value="">-- Select Department --</option>
+          {% for dept in form.department.field.queryset %}
+          <option value="{{ dept.pk }}" {% if form.department.value|stringformat:"s" == dept.pk|stringformat:"s" %}selected{% endif %}>{{ dept.name }}</option>
+          {% endfor %}
+        </select>
+        {% if form.department.errors %}<small style="color:#ef4444;">{{ form.department.errors|striptags }}</small>{% endif %}
+      </p>
+
+      <p>
+        <label for="{{ form.position.id_for_label }}"><strong>Target Job Position</strong></label>
+        <select name="{{ form.position.name }}" id="{{ form.position.id_for_label }}" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+          <option value="">-- Select Position --</option>
+          {% for pos in form.position.field.queryset %}
+          <option value="{{ pos.pk }}" {% if form.position.value|stringformat:"s" == pos.pk|stringformat:"s" %}selected{% endif %}>{{ pos.title }}</option>
+          {% endfor %}
+        </select>
+        {% if form.position.errors %}<small style="color:#ef4444;">{{ form.position.errors|striptags }}</small>{% endif %}
+      </p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <p>
+        <label for="{{ form.proposed_joining_date.id_for_label }}"><strong>Proposed Joining Date</strong></label>
+        <input type="date" name="{{ form.proposed_joining_date.name }}" id="{{ form.proposed_joining_date.id_for_label }}" value="{{ form.proposed_joining_date.value|default:'' }}" required min="{{ today|date:'Y-m-d' }}" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+        {% if form.proposed_joining_date.errors %}<small style="color:#ef4444;">{{ form.proposed_joining_date.errors|striptags }}</small>{% endif %}
+      </p>
+
+      <p>
+        <label for="{{ form.expiry_days.id_for_label }}"><strong>Link Validity (Days)</strong></label>
+        <input type="number" name="{{ form.expiry_days.name }}" id="{{ form.expiry_days.id_for_label }}" value="{{ form.expiry_days.value|default:3 }}" min="1" max="30" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+        <small style="color:#64748b;">Candidate must complete pre-onboarding before this deadline.</small>
+      </p>
+    </div>
+
+    <div style="display:flex;gap:12px;margin-top:20px;">
+      <button type="submit" class="btn">🚀 Generate &amp; Dispatch Invitation</button>
+      <a class="btn ghost" href="{% url 'onboarding_invitations' %}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}
