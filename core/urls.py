@@ -114,5 +114,9 @@ urlpatterns = [
     path("onboarding/wizard/step-2/", views_onboarding.onboarding_wizard_step2, name="onboarding_wizard_step2"),
     path("onboarding/wizard/step-3/", views_onboarding.onboarding_wizard_step3, name="onboarding_wizard_step3"),
     path("onboarding/wizard/step-4/", views_onboarding.onboarding_wizard_step4, name="onboarding_wizard_step4"),
-    path("onboarding/wizard/step-5/", views_onboarding.onboarding_wizard_step5_stub, name="onboarding_wizard_step5"),
+    path("onboarding/wizard/step-5/", views_onboarding.onboarding_wizard_step5, name="onboarding_wizard_step5"),
+    path("onboarding/wizard/submit/", views_onboarding.onboarding_wizard_submit, name="onboarding_wizard_submit"),
+    path("onboarding/review/", views_onboarding.onboarding_review_queue, name="onboarding_review_queue"),
+    path("onboarding/review/<int:pk>/", views_onboarding.onboarding_review_detail, name="onboarding_review_detail"),
+    path("onboarding/review/<int:pk>/action/", views_onboarding.onboarding_review_action, name="onboarding_review_action"),
 ]

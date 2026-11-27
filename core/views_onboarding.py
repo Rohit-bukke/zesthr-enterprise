@@ -588,25 +588,192 @@ def onboarding_wizard_step4(request):
 
 
 @login_required
-def onboarding_wizard_step5_stub(request):
+def onboarding_wizard_step5(request):
     """
-    Placeholder route for Step 5 / Final Review & Verification Queue, implemented in Phase 8.
+    Onboarding Wizard - Step 5: Candidate Final Review & Summary before submission to HR.
     """
     profile = _get_candidate_onboarding_profile(request.user)
     if not profile:
+        messages.info(request, "No active onboarding checklist found for your account.")
         return redirect("dashboard")
+
     return render(
         request,
-        "onboarding/wizard_step4.html",
+        "onboarding/wizard_summary.html",
         {
             "profile": profile,
             "invitation": profile.invitation,
-            "step": 4,
-            "total_steps": 4,
-            "is_stub": True,
-            "title": "Onboarding Wizard - Review & Submit",
+            "title": "Onboarding Review & Submission",
         }
     )
+
+
+@login_required
+def onboarding_wizard_submit(request):
+    """
+    Candidate action to formally submit onboarding package into the HR review queue.
+    """
+    if request.method != "POST":
+        return redirect("onboarding_wizard_step5")
+
+    profile = _get_candidate_onboarding_profile(request.user)
+    if not profile:
+        return redirect("dashboard")
+
+    if not (profile.step_1_completed and profile.step_2_completed and profile.step_3_completed and profile.step_4_completed):
+        messages.error(request, "Please complete all onboarding steps before final submission.")
+        return redirect("onboarding_wizard_step5")
+
+    profile.status = OnboardingProfile.STATUS_SUBMITTED
+    profile.submitted_at = timezone.now()
+    profile.save(update_fields=["status", "submitted_at"])
+
+    messages.success(request, "Your onboarding package has been submitted to HR for compliance verification.")
+    return redirect("onboarding_wizard_step5")
+
+
+@login_required
+def onboarding_review_queue(request):
+    """
+    HR compliance review queue listing candidate onboarding packages awaiting verification.
+    """
+    if not _can_manage_onboarding(request.user):
+        raise PermissionDenied("You do not have permission to access the onboarding review queue.")
+
+    base_qs = scope_queryset(
+        OnboardingProfile.objects.select_related(
+            "invitation", "invitation__department", "invitation__position", "user", "organization"
+        ),
+        request.user
+    )
+
+    pending_count = base_qs.filter(status=OnboardingProfile.STATUS_SUBMITTED).count()
+    verified_count = base_qs.filter(status=OnboardingProfile.STATUS_VERIFIED).count()
+    draft_count = base_qs.filter(status=OnboardingProfile.STATUS_DRAFT).count()
+
+    status_filter = request.GET.get("status", "SUBMITTED")
+    queryset = base_qs
+    if status_filter != "all" and status_filter in dict(OnboardingProfile.ONBOARDING_STATUS_CHOICES):
+        queryset = queryset.filter(status=status_filter)
+
+    q = request.GET.get("q", "").strip()
+    if q:
+        from django.db.models import Q
+        queryset = queryset.filter(
+            Q(invitation__first_name__icontains=q)
+            | Q(invitation__last_name__icontains=q)
+            | Q(invitation__email__icontains=q)
+        )
+
+    paginator = Paginator(queryset, 20)
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    return render(
+        request,
+        "onboarding/review_queue.html",
+        {
+            "page_obj": page_obj,
+            "pending_count": pending_count,
+            "verified_count": verified_count,
+            "draft_count": draft_count,
+            "current_status": status_filter,
+            "title": "Onboarding Review Queue",
+        }
+    )
+
+
+@login_required
+def onboarding_review_detail(request, pk):
+    """
+    HR candidate detail verification view. Inspects PAN, Aadhaar, Cheque, and policy signatures.
+    """
+    if not _can_manage_onboarding(request.user):
+        raise PermissionDenied("You do not have permission to review candidate onboarding packages.")
+
+    profile = get_object_or_404(
+        scope_queryset(
+            OnboardingProfile.objects.select_related(
+                "invitation", "invitation__department", "invitation__position", "user", "organization", "verified_by"
+            ),
+            request.user
+        ),
+        pk=pk
+    )
+
+    return render(
+        request,
+        "onboarding/review_detail.html",
+        {
+            "profile": profile,
+            "title": f"Review Onboarding: {profile.invitation.full_name}",
+        }
+    )
+
+
+@login_required
+def onboarding_review_action(request, pk):
+    """
+    HR compliance decision: 'approve' (activates employee and unlocks full system) or 'reject' (requests changes).
+    """
+    if not _can_manage_onboarding(request.user):
+        raise PermissionDenied("You do not have permission to decide onboarding reviews.")
+
+    if request.method != "POST":
+        return redirect("onboarding_review_queue")
+
+    profile = get_object_or_404(
+        scope_queryset(OnboardingProfile.objects.select_related("invitation", "user", "organization"), request.user),
+        pk=pk
+    )
+
+    action = request.POST.get("action")
+    notes = request.POST.get("notes", "").strip()
+
+    if action == "approve":
+        with transaction.atomic():
+            profile.status = OnboardingProfile.STATUS_VERIFIED
+            profile.verified_at = timezone.now()
+            profile.verified_by = request.user
+            profile.verification_notes = notes
+            profile.save(update_fields=["status", "verified_at", "verified_by", "verification_notes"])
+
+            # Activate employee record
+            emp = getattr(profile.user, "employee_profile", None)
+            if emp:
+                emp.employment_status = "ACTIVE"
+                emp.is_active = True
+                emp.address = profile.current_address
+                emp.emergency_contact_name = profile.emergency_contact_name
+                emp.emergency_contact_phone = profile.emergency_contact_phone
+                emp.save(update_fields=["employment_status", "is_active", "address", "emergency_contact_name", "emergency_contact_phone"])
+
+            # Also ensure user login is active
+            if not profile.user.is_active:
+                profile.user.is_active = True
+                profile.user.save(update_fields=["is_active"])
+
+            messages.success(
+                request,
+                f"Candidate {profile.invitation.full_name} has been verified and fully activated as an active Employee."
+            )
+            return redirect("onboarding_review_detail", pk=profile.pk)
+
+    elif action == "reject":
+        profile.status = OnboardingProfile.STATUS_REJECTED
+        profile.verification_notes = notes
+        profile.save(update_fields=["status", "verification_notes"])
+
+        messages.warning(
+            request,
+            f"Onboarding package for {profile.invitation.full_name} was returned with change requests."
+        )
+        return redirect("onboarding_review_detail", pk=profile.pk)
+
+    else:
+        messages.error(request, "Invalid review action.")
+        return redirect("onboarding_review_detail", pk=profile.pk)
+
 
 
 
