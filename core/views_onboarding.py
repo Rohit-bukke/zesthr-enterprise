@@ -13,9 +13,13 @@ from django.utils import timezone
 from apps.organizations.models import OrganizationMembership
 from apps.organizations.tenancy import scope_queryset
 from core import roles
-from core.forms_onboarding import CandidateInvitationForm, CandidateRegistrationForm
+from core.forms_onboarding import (
+    CandidateInvitationForm,
+    CandidateRegistrationForm,
+    OnboardingStep1PersonalForm,
+)
 from core.models import Employee
-from core.models_onboarding import CandidateInvitation
+from core.models_onboarding import CandidateInvitation, OnboardingProfile
 
 
 def _can_manage_onboarding(user):
@@ -259,16 +263,27 @@ def candidate_landing(request, token):
                 # 4. Accept the invitation
                 invitation.accept(employee=employee)
 
-                # 5. Log the user in
+                # 5. Create or get Onboarding Profile for the candidate
+                onboarding_profile, _ = OnboardingProfile.objects.get_or_create(
+                    invitation=invitation,
+                    defaults={
+                        "user": user,
+                        "organization": invitation.organization,
+                        "current_step": OnboardingProfile.STEP_1_PERSONAL,
+                        "status": OnboardingProfile.STATUS_DRAFT,
+                    }
+                )
+
+                # 6. Log the user in
                 login(request, user, backend="django.contrib.auth.backends.ModelBackend")
 
                 messages.success(
                     request,
-                    f"Welcome to {invitation.organization.name}! Your account has been created."
+                    f"Welcome to {invitation.organization.name}! Please complete your onboarding details."
                 )
 
-                # Redirect to dashboard or onboarding wizard entry
-                return redirect("dashboard")
+                # Redirect to Onboarding Wizard Step 1
+                return redirect("onboarding_wizard_step1")
     else:
         form = CandidateRegistrationForm(invitation=invitation)
 
@@ -281,5 +296,112 @@ def candidate_landing(request, token):
             "form": form,
         },
     )
+
+
+def _get_candidate_onboarding_profile(user):
+    """
+    Retrieves or establishes the OnboardingProfile for the logged-in candidate.
+    """
+    profile = OnboardingProfile.objects.filter(user=user).select_related(
+        "invitation", "organization", "invitation__department", "invitation__position"
+    ).first()
+    if not profile:
+        # Check if user has an accepted invitation
+        invitation = CandidateInvitation.objects.filter(email__iexact=user.email).order_by("-created_at").first()
+        if invitation:
+            profile, _ = OnboardingProfile.objects.get_or_create(
+                invitation=invitation,
+                defaults={
+                    "user": user,
+                    "organization": invitation.organization,
+                    "current_step": OnboardingProfile.STEP_1_PERSONAL,
+                }
+            )
+    return profile
+
+
+@login_required
+def onboarding_wizard_step1(request):
+    """
+    Multi-Step Onboarding Wizard - Step 1: Personal Profile & Emergency Contacts.
+    """
+    profile = _get_candidate_onboarding_profile(request.user)
+    if not profile:
+        messages.info(request, "No active onboarding checklist found for your account.")
+        return redirect("dashboard")
+
+    if request.method == "POST":
+        form = OnboardingStep1PersonalForm(request.POST, instance=profile)
+        if form.is_valid():
+            profile = form.save(commit=False)
+            profile.step_1_completed = True
+            # Advance wizard step if candidate was on step 1
+            if profile.current_step <= OnboardingProfile.STEP_1_PERSONAL:
+                profile.current_step = OnboardingProfile.STEP_2_STATUTORY
+            profile.save()
+
+            # Sync emergency contact and address to Employee record if profile linked
+            if hasattr(request.user, "employee_profile") and request.user.employee_profile:
+                emp = request.user.employee_profile
+                emp.date_of_birth = profile.date_of_birth
+                emp.address = profile.current_address
+                emp.emergency_contact_name = profile.emergency_contact_name
+                emp.emergency_contact_phone = profile.emergency_contact_phone
+                emp.save(update_fields=["date_of_birth", "address", "emergency_contact_name", "emergency_contact_phone"])
+
+            messages.success(request, "Step 1: Personal profile & emergency contacts saved successfully.")
+            # Move to Step 2 (or redirect to wizard step 2 route)
+            return redirect("onboarding_wizard_step2")
+    else:
+        # Pre-fill address/phone from employee profile if blank
+        initial = {}
+        if hasattr(request.user, "employee_profile") and request.user.employee_profile:
+            emp = request.user.employee_profile
+            if not profile.current_address and emp.address:
+                initial["current_address"] = emp.address
+            if not profile.date_of_birth and emp.date_of_birth:
+                initial["date_of_birth"] = emp.date_of_birth
+            if not profile.emergency_contact_name and emp.emergency_contact_name:
+                initial["emergency_contact_name"] = emp.emergency_contact_name
+            if not profile.emergency_contact_phone and emp.emergency_contact_phone:
+                initial["emergency_contact_phone"] = emp.emergency_contact_phone
+
+        form = OnboardingStep1PersonalForm(instance=profile, initial=initial)
+
+    return render(
+        request,
+        "onboarding/wizard_step1.html",
+        {
+            "profile": profile,
+            "invitation": profile.invitation,
+            "form": form,
+            "step": 1,
+            "total_steps": 4,
+            "title": "Onboarding Wizard - Step 1: Personal & Emergency Details",
+        }
+    )
+
+
+@login_required
+def onboarding_wizard_step2_stub(request):
+    """
+    Placeholder route for Step 2 (Statutory Compliance), implemented in Phase 5.
+    """
+    profile = _get_candidate_onboarding_profile(request.user)
+    if not profile:
+        return redirect("dashboard")
+    return render(
+        request,
+        "onboarding/wizard_step1.html",
+        {
+            "profile": profile,
+            "invitation": profile.invitation,
+            "step": 2,
+            "total_steps": 4,
+            "is_stub": True,
+            "title": "Onboarding Wizard - Step 2: Statutory Compliance",
+        }
+    )
+
 
 

@@ -131,3 +131,128 @@ class CandidateInvitation(models.Model):
             raise ValidationError(f"Cannot revoke an invitation in status {self.status}.")
         self.status = self.STATUS_REVOKED
         self.save(update_fields=["status"])
+
+
+class OnboardingProfile(models.Model):
+    """
+    Candidate onboarding progress, draft data, and multi-step wizard state persistence.
+    Created when candidate registers; tracks steps 1 to 4 before final submission.
+    """
+    STEP_1_PERSONAL = 1
+    STEP_2_STATUTORY = 2
+    STEP_3_BANKING = 3
+    STEP_4_POLICIES = 4
+    STEP_5_REVIEW = 5
+
+    WIZARD_STEP_CHOICES = [
+        (STEP_1_PERSONAL, "Personal & Emergency Details"),
+        (STEP_2_STATUTORY, "Statutory Compliance"),
+        (STEP_3_BANKING, "Banking Details"),
+        (STEP_4_POLICIES, "Company Policies"),
+        (STEP_5_REVIEW, "Submission & Verification"),
+    ]
+
+    STATUS_DRAFT = "DRAFT"
+    STATUS_SUBMITTED = "SUBMITTED"
+    STATUS_VERIFIED = "VERIFIED"
+    STATUS_REJECTED = "REJECTED"
+
+    ONBOARDING_STATUS_CHOICES = [
+        (STATUS_DRAFT, "In Progress (Draft)"),
+        (STATUS_SUBMITTED, "Submitted for Verification"),
+        (STATUS_VERIFIED, "Verified & Completed"),
+        (STATUS_REJECTED, "Changes Requested"),
+    ]
+
+    GENDER_CHOICES = [
+        ("M", "Male"),
+        ("F", "Female"),
+        ("O", "Other"),
+        ("N", "Prefer not to say"),
+    ]
+
+    BLOOD_GROUP_CHOICES = [
+        ("A+", "A+"),
+        ("A-", "A-"),
+        ("B+", "B+"),
+        ("B-", "B-"),
+        ("AB+", "AB+"),
+        ("AB-", "AB-"),
+        ("O+", "O+"),
+        ("O-", "O-"),
+    ]
+
+    invitation = models.OneToOneField(
+        CandidateInvitation,
+        on_delete=models.CASCADE,
+        related_name="onboarding_profile"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="onboarding_profiles"
+    )
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.PROTECT,
+        related_name="onboarding_profiles"
+    )
+    current_step = models.PositiveSmallIntegerField(
+        default=STEP_1_PERSONAL,
+        choices=WIZARD_STEP_CHOICES
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=ONBOARDING_STATUS_CHOICES,
+        default=STATUS_DRAFT
+    )
+
+    # Step 1: Personal Profile
+    date_of_birth = models.DateField(null=True, blank=True)
+    gender = models.CharField(max_length=2, choices=GENDER_CHOICES, blank=True)
+    blood_group = models.CharField(max_length=5, choices=BLOOD_GROUP_CHOICES, blank=True)
+    current_address = models.TextField(blank=True, help_text="Current residential address")
+    permanent_address = models.TextField(blank=True, help_text="Permanent residential address")
+    same_as_current_address = models.BooleanField(
+        default=False,
+        help_text="Whether permanent address is the same as current address"
+    )
+
+    # Step 1: Emergency Contact
+    emergency_contact_name = models.CharField(max_length=100, blank=True)
+    emergency_contact_relationship = models.CharField(max_length=50, blank=True)
+    emergency_contact_phone = models.CharField(max_length=20, blank=True)
+    emergency_contact_alt_phone = models.CharField(max_length=20, blank=True)
+
+    # Step completion markers
+    step_1_completed = models.BooleanField(default=False)
+    step_2_completed = models.BooleanField(default=False)
+    step_3_completed = models.BooleanField(default=False)
+    step_4_completed = models.BooleanField(default=False)
+
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    verified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="verified_onboardings"
+    )
+    verification_notes = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "onboarding_profile"
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return f"Onboarding: {self.invitation.full_name} ({self.get_status_display()})"
+
+    def save(self, *args, **kwargs):
+        if self.same_as_current_address and self.current_address:
+            self.permanent_address = self.current_address
+        super().save(*args, **kwargs)
+

@@ -163,3 +163,74 @@ class CandidateRegistrationForm(forms.Form):
 
         return cleaned_data
 
+
+class OnboardingStep1PersonalForm(forms.ModelForm):
+    """
+    Onboarding Wizard Step 1: Personal profile & emergency contacts.
+    """
+    class Meta:
+        from core.models_onboarding import OnboardingProfile
+        model = OnboardingProfile
+        fields = [
+            "date_of_birth",
+            "gender",
+            "blood_group",
+            "current_address",
+            "permanent_address",
+            "same_as_current_address",
+            "emergency_contact_name",
+            "emergency_contact_relationship",
+            "emergency_contact_phone",
+            "emergency_contact_alt_phone",
+        ]
+        widgets = {
+            "date_of_birth": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "gender": forms.Select(attrs={"class": "form-control"}),
+            "blood_group": forms.Select(attrs={"class": "form-control"}),
+            "current_address": forms.Textarea(attrs={"class": "form-control", "rows": 3, "placeholder": "Flat / House No., Street, City, State, PIN"}),
+            "permanent_address": forms.Textarea(attrs={"class": "form-control", "rows": 3, "placeholder": "Permanent residential address"}),
+            "same_as_current_address": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "emergency_contact_name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Full name of emergency contact"}),
+            "emergency_contact_relationship": forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. Spouse, Parent, Sibling, Friend"}),
+            "emergency_contact_phone": forms.TextInput(attrs={"class": "form-control", "placeholder": "+91 9876543210"}),
+            "emergency_contact_alt_phone": forms.TextInput(attrs={"class": "form-control", "placeholder": "Optional secondary phone"}),
+        }
+
+    def clean_date_of_birth(self):
+        dob = self.cleaned_data.get("date_of_birth")
+        if dob:
+            today = timezone.localdate()
+            age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+            if age < 18:
+                raise ValidationError("Candidate must be at least 18 years of age.")
+            if age > 100:
+                raise ValidationError("Please provide a valid date of birth.")
+        else:
+            raise ValidationError("Date of birth is required.")
+        return dob
+
+    def clean(self):
+        cleaned_data = super().clean()
+        current_addr = cleaned_data.get("current_address", "").strip()
+        same_as = cleaned_data.get("same_as_current_address", False)
+        perm_addr = cleaned_data.get("permanent_address", "").strip()
+
+        if not current_addr:
+            self.add_error("current_address", "Current residential address is required.")
+
+        if same_as:
+            cleaned_data["permanent_address"] = current_addr
+        elif not perm_addr:
+            self.add_error("permanent_address", "Permanent address is required or select 'Same as current address'.")
+
+        # Emergency contact requirements
+        if not cleaned_data.get("emergency_contact_name", "").strip():
+            self.add_error("emergency_contact_name", "Emergency contact name is required.")
+        if not cleaned_data.get("emergency_contact_relationship", "").strip():
+            self.add_error("emergency_contact_relationship", "Relationship to emergency contact is required.")
+        if not cleaned_data.get("emergency_contact_phone", "").strip():
+            self.add_error("emergency_contact_phone", "Primary emergency contact phone number is required.")
+
+        return cleaned_data
+
+
