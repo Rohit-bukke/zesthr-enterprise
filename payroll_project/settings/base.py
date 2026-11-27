@@ -86,7 +86,7 @@ TIME_ZONE = env("DJANGO_TIME_ZONE", "Asia/Kolkata")
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"  # target of `collectstatic` (production)
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
@@ -177,7 +177,7 @@ DOCUMENT_UPLOADS_ENABLED = env_bool("DJANGO_DOCUMENT_UPLOADS_ENABLED", True)
 PRIVATE_DOCUMENT_ROOT = env("DJANGO_PRIVATE_DOCUMENT_ROOT", "").strip() or str(BASE_DIR / "private_documents")
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
     "private_documents": private_document_storage(BASE_DIR),
 }
 
