@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}Onboarding Wizard - Step 1: Personal Details | {{ profile.organization.name }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 860px; margin: 1.5rem auto; padding: 0 1rem;">
+
+    <!-- Wizard Header & Progress Bar -->
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
+            <div>
+                <span class="hros-pill-badge" style="background: #e0f2fe; color: #0369a1; font-weight: 600; font-size: 0.75rem; padding: 0.25rem 0.6rem; border-radius: 9999px;">
+                    CANDIDATE ONBOARDING
+                </span>
+                <h1 style="margin: 0.35rem 0 0 0; font-size: 1.5rem; color: #0f172a;">Welcome to {{ profile.organization.name }}</h1>
+                <p style="margin: 0.25rem 0 0 0; color: #64748b; font-size: 0.875rem;">
+                    Role: <strong>{% if invitation.position %}{{ invitation.position.title }}{% else %}Team Member{% endif %}</strong>
+                    {% if invitation.department %} &bull; {{ invitation.department.name }}{% endif %}
+                    &bull; Expected Joining: <strong>{{ invitation.proposed_joining_date|date:"d M Y" }}</strong>
+                </p>
+            </div>
+            <div style="text-align: right;">
+                <span style="font-size: 0.875rem; font-weight: 600; color: #0f766e;">Step {{ step }} of {{ total_steps }}</span>
+            </div>
+        </div>
+
+        <!-- Step Indicator Track -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-top: 1rem;">
+            <div style="padding: 0.6rem; border-radius: 8px; background: #f0fdf4; border: 1px solid #86efac; text-align: center;">
+                <span style="display: block; font-size: 0.75rem; font-weight: 600; color: #15803d;">STEP 1</span>
+                <span style="font-size: 0.825rem; font-weight: 600; color: #166534;">Personal Details</span>
+            </div>
+            <div style="padding: 0.6rem; border-radius: 8px; background: {% if profile.step_2_completed %}#f0fdf4; border: 1px solid #86efac;{% else %}#f8fafc; border: 1px solid #cbd5e1;{% endif %} text-align: center;">
+                <span style="display: block; font-size: 0.75rem; font-weight: 600; color: #64748b;">STEP 2</span>
+                <span style="font-size: 0.825rem; color: #475569;">Statutory (PAN/Aadhaar)</span>
+            </div>
+            <div style="padding: 0.6rem; border-radius: 8px; background: {% if profile.step_3_completed %}#f0fdf4; border: 1px solid #86efac;{% else %}#f8fafc; border: 1px solid #cbd5e1;{% endif %} text-align: center;">
+                <span style="display: block; font-size: 0.75rem; font-weight: 600; color: #64748b;">STEP 3</span>
+                <span style="font-size: 0.825rem; color: #475569;">Bank Account</span>
+            </div>
+            <div style="padding: 0.6rem; border-radius: 8px; background: {% if profile.step_4_completed %}#f0fdf4; border: 1px solid #86efac;{% else %}#f8fafc; border: 1px solid #cbd5e1;{% endif %} text-align: center;">
+                <span style="display: block; font-size: 0.75rem; font-weight: 600; color: #64748b;">STEP 4</span>
+                <span style="font-size: 0.825rem; color: #475569;">Policy Sign-Off</span>
+            </div>
+        </div>
+    </div>
+
+    {% if is_stub %}
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 2.5rem; text-align: center;">
+        <div style="width: 56px; height: 56px; border-radius: 50%; background: #ecfdf5; color: #059669; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem auto; font-size: 1.5rem;">
+            ✓
+        </div>
+        <h2 style="font-size: 1.5rem; color: #0f172a; margin-bottom: 0.5rem;">Step 1 Completed!</h2>
+        <p style="color: #64748b; max-width: 480px; margin: 0 auto 1.5rem auto; font-size: 0.95rem;">
+            Your personal profile and emergency contacts have been safely recorded. Step 2 (Statutory Compliance &amp; ID Collection) will be unlocked in the next release.
+        </p>
+        <a href="{% url 'onboarding_wizard_step1' %}" class="btn ghost" style="padding: 0.6rem 1.25rem;">&larr; Back to Edit Step 1</a>
+        <a href="{% url 'dashboard' %}" class="btn" style="padding: 0.6rem 1.25rem; margin-left: 0.5rem; background: #0f766e; color: white;">Go to Dashboard</a>
+    </div>
+    {% else %}
+    <!-- Step 1 Form Card -->
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <h2 style="margin: 0 0 0.5rem 0; font-size: 1.25rem; color: #0f172a;">Personal &amp; Emergency Details</h2>
+        <p style="margin: 0 0 1.75rem 0; color: #64748b; font-size: 0.875rem;">
+            Please ensure your legal name, birthday, and contact details match your government-issued identification cards.
+        </p>
+
+        <form method="post" novalidate id="step1Form">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="toast error" role="alert" style="background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                    {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+                </div>
+            {% endif %}
+
+            <!-- Section 1: Personal Profile -->
+            <fieldset style="border: none; padding: 0; margin: 0 0 2rem 0;">
+                <legend style="font-weight: 700; font-size: 1rem; color: #1e293b; border-bottom: 1px solid #e2e8f0; width: 100%; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                    1. Basic Information
+                </legend>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group">
+                        <label for="{{ form.date_of_birth.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                            Date of Birth <span style="color: #ef4444;">*</span>
+                        </label>
+                        {{ form.date_of_birth }}
+                        {% for error in form.date_of_birth.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.gender.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                            Gender
+                        </label>
+                        {{ form.gender }}
+                        {% for error in form.gender.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.blood_group.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                            Blood Group
+                        </label>
+                        {{ form.blood_group }}
+                        {% for error in form.blood_group.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label for="{{ form.current_address.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                        Current Residential Address <span style="color: #ef4444;">*</span>
+                    </label>
+                    {{ form.current_address }}
+                    {% for error in form.current_address.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.875rem; color: #334155; font-weight: 500;">
+                        {{ form.same_as_current_address }}
+                        Permanent address is the same as current address
+                    </label>
+                </div>
+
+                <div class="form-group" id="permAddressGroup" style="margin-bottom: 1rem; {% if form.same_as_current_address.value %}display: none;{% endif %}">
+                    <label for="{{ form.permanent_address.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                        Permanent Residential Address
+                    </label>
+                    {{ form.permanent_address }}
+                    {% for error in form.permanent_address.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                </div>
+            </fieldset>
+
+            <!-- Section 2: Emergency Contacts -->
+            <fieldset style="border: none; padding: 0; margin: 0 0 2rem 0;">
+                <legend style="font-weight: 700; font-size: 1rem; color: #1e293b; border-bottom: 1px solid #e2e8f0; width: 100%; padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                    2. Emergency Contacts
+                </legend>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group">
+                        <label for="{{ form.emergency_contact_name.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                            Emergency Contact Full Name <span style="color: #ef4444;">*</span>
+                        </label>
+                        {{ form.emergency_contact_name }}
+                        {% for error in form.emergency_contact_name.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.emergency_contact_relationship.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                            Relationship <span style="color: #ef4444;">*</span>
+                        </label>
+                        {{ form.emergency_contact_relationship }}
+                        {% for error in form.emergency_contact_relationship.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label for="{{ form.emergency_contact_phone.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                            Primary Phone Number <span style="color: #ef4444;">*</span>
+                        </label>
+                        {{ form.emergency_contact_phone }}
+                        {% for error in form.emergency_contact_phone.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.emergency_contact_alt_phone.id_for_label }}" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                            Alternate Phone Number (Optional)
+                        </label>
+                        {{ form.emergency_contact_alt_phone }}
+                        {% for error in form.emergency_contact_alt_phone.errors %}<div style="color: #dc2626; font-size: 0.8rem; margin-top: 0.25rem;">{{ error }}</div>{% endfor %}
+                    </div>
+                </div>
+            </fieldset>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 1.5rem; margin-top: 1rem;">
+                <a href="{% url 'dashboard' %}" class="btn ghost" style="padding: 0.65rem 1.25rem;">Save &amp; Finish Later</a>
+                <button type="submit" class="btn btn-primary" style="padding: 0.65rem 1.75rem; background: #0f766e; color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">
+                    Save &amp; Continue to Step 2 &rarr;
+                </button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const sameCheckbox = document.getElementById("{{ form.same_as_current_address.id_for_label }}");
+    const permGroup = document.getElementById("permAddressGroup");
+    const currentAddr = document.getElementById("{{ form.current_address.id_for_label }}");
+    const permAddr = document.getElementById("{{ form.permanent_address.id_for_label }}");
+
+    if (sameCheckbox && permGroup) {
+        sameCheckbox.addEventListener("change", function() {
+            if (this.checked) {
+                permGroup.style.display = "none";
+                if (currentAddr && permAddr) {
+                    permAddr.value = currentAddr.value;
+                }
+            } else {
+                permGroup.style.display = "block";
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

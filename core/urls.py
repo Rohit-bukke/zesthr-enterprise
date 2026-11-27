@@ -110,4 +110,9 @@ urlpatterns = [
     path("onboarding/invitations/new/", views_onboarding.invitation_create, name="onboarding_invitation_create"),
     path("onboarding/invitations/<int:pk>/action/", views_onboarding.invitation_action, name="onboarding_invitation_action"),
     path("onboarding/invite/<uuid:token>/", views_onboarding.candidate_landing, name="onboarding_candidate_landing"),
+    path("onboarding/wizard/step-1/", views_onboarding.onboarding_wizard_step1, name="onboarding_wizard_step1"),
+    path("onboarding/wizard/step-2/", views_onboarding.onboarding_wizard_step2, name="onboarding_wizard_step2"),
+    path("onboarding/wizard/step-3/", views_onboarding.onboarding_wizard_step3, name="onboarding_wizard_step3"),
+    path("onboarding/wizard/step-4/", views_onboarding.onboarding_wizard_step4, name="onboarding_wizard_step4"),
+    path("onboarding/wizard/step-5/", views_onboarding.onboarding_wizard_step5_stub, name="onboarding_wizard_step5"),
 ]
