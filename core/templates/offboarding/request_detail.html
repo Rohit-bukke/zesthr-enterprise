@@ -146,6 +146,26 @@
                 <a href="{% url 'offboarding_clearance_console' %}?q={{ exit_req.employee.name|urlencode }}" class="btn sm">Open in Clearance Console &rarr;</a>
             </div>
         </section>
+
+        <section class="card" style="padding: 1.25rem; margin-top: 1.5rem; border-left: 4px solid #059669;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h4 style="margin: 0 0 4px 0; color: #064e3b;">Full &amp; Final (F&amp;F) Financial Settlement</h4>
+                    {% if exit_req.settlement %}
+                        <p class="muted" style="margin: 0; font-size: 0.85rem;">
+                            Status: <strong>{{ exit_req.settlement.get_status_display }}</strong> &bull;
+                            Net: <strong style="color: {% if exit_req.settlement.is_recoverable %}#b91c1c{% else %}#15803d{% endif %};">₹{{ exit_req.settlement.abs_net_amount }}</strong>
+                            ({{ exit_req.settlement.payment_type_label }})
+                        </p>
+                    {% else %}
+                        <p class="muted" style="margin: 0; font-size: 0.85rem;">Automated calculation ready to generate for prorated salary, leave encashment, gratuity, and recoveries.</p>
+                    {% endif %}
+                </div>
+                <a href="{% url 'offboarding_settlement_detail' exit_req.pk %}" class="btn sm" style="background: #059669; border-color: #059669; color: white;">
+                    {% if exit_req.settlement %}Inspect F&amp;F Settlement &rarr;{% else %}Calculate F&amp;F Settlement &rarr;{% endif %}
+                </a>
+            </div>
+        </section>
         {% endif %}
     </div>
 

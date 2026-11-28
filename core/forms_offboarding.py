@@ -97,5 +97,109 @@ class ExitRequestReviewForm(forms.Form):
             effective_lwd = official_lwd or self.exit_request.requested_lwd
             if effective_lwd < self.exit_request.resignation_date:
                 self.add_error("official_lwd", "Official last working day cannot be earlier than the resignation submission date.")
-
         return cleaned_data
+
+
+class ExitSettlementAdjustmentForm(forms.Form):
+    """
+    Form for HR / Finance to inspect and adjust Full & Final settlement parameters.
+    """
+    worked_days_in_final_month = forms.IntegerField(
+        required=False,
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": "0", "max": "31"}),
+        label="Worked Days in Final Month"
+    )
+    leave_encashment_days = forms.DecimalField(
+        required=False,
+        max_digits=6,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.5", "min": "0"}),
+        label="Leave Encashment Days"
+    )
+    reimbursable_expenses_amount = forms.DecimalField(
+        required=False,
+        max_digits=12,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
+        label="Approved Expense Reimbursements (₹)"
+    )
+    is_gratuity_eligible = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        label="Gratuity Eligible (Tenure >= 5 Yrs)"
+    )
+    gratuity_amount = forms.DecimalField(
+        required=False,
+        max_digits=12,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
+        label="Gratuity Amount (₹)"
+    )
+    additional_earnings = forms.DecimalField(
+        required=False,
+        max_digits=12,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
+        label="Additional Earnings / Bonus (₹)"
+    )
+    additional_earnings_notes = forms.CharField(
+        required=False,
+        max_length=255,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "E.g. Performance bonus, retention bonus..."}),
+        label="Additional Earnings Description"
+    )
+
+    notice_shortfall_days = forms.IntegerField(
+        required=False,
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": "0"}),
+        label="Notice Shortfall Days"
+    )
+    salary_advance_recovery = forms.DecimalField(
+        required=False,
+        max_digits=12,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
+        label="Salary Advance Recovery (₹)"
+    )
+    asset_damage_recovery = forms.DecimalField(
+        required=False,
+        max_digits=12,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
+        label="Asset / Equipment Damage Deduction (₹)"
+    )
+    additional_deductions = forms.DecimalField(
+        required=False,
+        max_digits=12,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
+        label="Additional Deductions (₹)"
+    )
+    additional_deductions_notes = forms.CharField(
+        required=False,
+        max_length=255,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "E.g. Relocation recovery, training bond..."}),
+        label="Additional Deductions Description"
+    )
+    remarks = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 3, "placeholder": "Finance notes, audit justifications..."}),
+        label="Finance & Settlement Remarks"
+    )
+
+    def __init__(self, *args, settlement=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if settlement and not self.is_bound:
+            self.fields["worked_days_in_final_month"].initial = settlement.worked_days_in_final_month
+            self.fields["leave_encashment_days"].initial = settlement.leave_encashment_days
+            self.fields["reimbursable_expenses_amount"].initial = settlement.reimbursable_expenses_amount
+            self.fields["is_gratuity_eligible"].initial = settlement.is_gratuity_eligible
+            self.fields["gratuity_amount"].initial = settlement.gratuity_amount
+            self.fields["additional_earnings"].initial = settlement.additional_earnings
+            self.fields["additional_earnings_notes"].initial = settlement.additional_earnings_notes
+            self.fields["notice_shortfall_days"].initial = settlement.notice_shortfall_days
+            self.fields["salary_advance_recovery"].initial = settlement.salary_advance_recovery
+            self.fields["asset_damage_recovery"].initial = settlement.asset_damage_recovery
+            self.fields["additional_deductions"].initial = settlement.additional_deductions
+            self.fields["additional_deductions_notes"].initial = settlement.additional_deductions_notes
+            self.fields["remarks"].initial = settlement.remarks

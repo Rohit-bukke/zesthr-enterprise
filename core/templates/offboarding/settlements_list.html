@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}Full &amp; Final (F&amp;F) Settlements | HRMS Portal{% endblock %}
+
+{% block content %}
+<div class="head">
+    <div>
+        <h1>Full &amp; Final (F&amp;F) Financial Settlements</h1>
+        <p class="muted">Manage automated exit settlement calculations, inspect itemized earnings &amp; recoveries, and finalize departing employee payouts.</p>
+    </div>
+    <div class="actions">
+        <a class="btn ghost" href="{% url 'offboarding_requests_list' %}">&larr; Resignation Requests</a>
+        <a class="btn ghost" href="{% url 'offboarding_clearance_console' %}">Exit Clearance Console</a>
+    </div>
+</div>
+
+<!-- Settlements KPI Metric Counters -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+    <a href="?status=all" style="text-decoration: none; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: block;">
+        <span style="font-size: 0.8rem; font-weight: 600; color: #4338ca; text-transform: uppercase;">Total Settlements</span>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #1e1b4b; margin-top: 0.25rem;">{{ counts.all }}</div>
+    </a>
+    <a href="?status=CALCULATED" style="text-decoration: none; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: block;">
+        <span style="font-size: 0.8rem; font-weight: 600; color: #b45309; text-transform: uppercase;">Pending Review</span>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #78350f; margin-top: 0.25rem;">{{ counts.calculated }}</div>
+    </a>
+    <a href="?status=APPROVED" style="text-decoration: none; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: block;">
+        <span style="font-size: 0.8rem; font-weight: 600; color: #15803d; text-transform: uppercase;">Approved by Finance</span>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #14532d; margin-top: 0.25rem;">{{ counts.approved }}</div>
+    </a>
+    <a href="?status=RECOVERABLE" style="text-decoration: none; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: block;">
+        <span style="font-size: 0.8rem; font-weight: 600; color: #b91c1c; text-transform: uppercase;">Recoverable Balances</span>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #7f1d1d; margin-top: 0.25rem;">{{ counts.recoverable }}</div>
+    </a>
+</div>
+
+<!-- Filters & Search Form -->
+<div class="card" style="margin-bottom: 1.5rem; padding: 1rem;">
+    <form method="get" style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+        <div style="flex: 1; min-width: 240px;">
+            <input type="text" name="q" value="{{ search_query }}" placeholder="Search by employee name or remarks..." class="form-control" style="width: 100%;">
+        </div>
+        <div>
+            <select name="status" class="form-control" onchange="this.form.submit()">
+                <option value="all" {% if current_status == 'all' %}selected{% endif %}>All Settlement Statuses</option>
+                <option value="CALCULATED" {% if current_status == 'CALCULATED' %}selected{% endif %}>Calculated (Pending Review)</option>
+                <option value="APPROVED" {% if current_status == 'APPROVED' %}selected{% endif %}>Approved</option>
+                <option value="SETTLED" {% if current_status == 'SETTLED' %}selected{% endif %}>Settled &amp; Disbursed</option>
+                <option value="PAYABLE" {% if current_status == 'PAYABLE' %}selected{% endif %}>Net Payable Only</option>
+                <option value="RECOVERABLE" {% if current_status == 'RECOVERABLE' %}selected{% endif %}>Net Recoverable Only</option>
+            </select>
+        </div>
+        <button type="submit" class="btn">Filter</button>
+        {% if search_query or current_status != 'all' %}
+            <a href="{% url 'offboarding_settlements_list' %}" class="btn ghost">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Settlements Table -->
+{% if page_obj %}
+<div class="card" style="padding: 0; overflow: hidden;">
+    <div class="scroll">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+            <thead>
+                <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left;">
+                    <th style="padding: 12px 16px;">Employee</th>
+                    <th style="padding: 12px 16px;">Official LWD</th>
+                    <th style="padding: 12px 16px; text-align: right;">Total Earnings</th>
+                    <th style="padding: 12px 16px; text-align: right;">Total Deductions</th>
+                    <th style="padding: 12px 16px; text-align: right;">Net Balance</th>
+                    <th style="padding: 12px 16px; text-align: center;">Settlement Status</th>
+                    <th style="padding: 12px 16px; text-align: right;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stm in page_obj %}
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 12px 16px;">
+                        <a href="{% url 'offboarding_settlement_detail' stm.exit_request_id %}" style="font-weight: 600; text-decoration: none; color: #1e293b;">
+                            {{ stm.employee.name }}
+                        </a>
+                        <div class="muted" style="font-size: 0.75rem;">
+                            {{ stm.employee.position.title|default:"Team Member" }} &bull; Basic: ₹{{ stm.last_drawn_basic }}
+                        </div>
+                    </td>
+                    <td style="padding: 12px 16px;">
+                        {{ stm.exit_request.official_lwd|default:stm.exit_request.requested_lwd|date:"d M Y" }}
+                    </td>
+                    <td style="padding: 12px 16px; text-align: right; color: #15803d; font-weight: 600;">
+                        ₹{{ stm.total_earnings }}
+                    </td>
+                    <td style="padding: 12px 16px; text-align: right; color: #b91c1c; font-weight: 600;">
+                        ₹{{ stm.total_deductions }}
+                    </td>
+                    <td style="padding: 12px 16px; text-align: right;">
+                        <span style="font-weight: 700; color: {% if stm.is_recoverable %}#b91c1c{% else %}#15803d{% endif %};">
+                            ₹{{ stm.abs_net_amount }}
+                        </span>
+                        <div class="muted" style="font-size: 0.7rem;">
+                            {% if stm.is_recoverable %}Recoverable{% else %}Payable{% endif %}
+                        </div>
+                    </td>
+                    <td style="padding: 12px 16px; text-align: center;">
+                        {% if stm.status == "APPROVED" %}
+                            <span class="badge" style="background: #dcfce7; color: #15803d;">Approved</span>
+                        {% elif stm.status == "SETTLED" %}
+                            <span class="badge" style="background: #dbeafe; color: #1e40af;">Settled</span>
+                        {% else %}
+                            <span class="badge" style="background: #fef3c7; color: #92400e;">Calculated</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 12px 16px; text-align: right;">
+                        <a href="{% url 'offboarding_settlement_detail' stm.exit_request_id %}" class="btn ghost sm">
+                            Inspect Statement &rarr;
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Pagination -->
+{% if page_obj.has_other_pages %}
+<div style="display: flex; justify-content: center; gap: 8px; margin-top: 1.5rem;">
+    {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if current_status != 'all' %}&status={{ current_status }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" class="btn ghost">&laquo; Previous</a>
+    {% endif %}
+    <span style="align-self: center; font-size: 0.85rem;" class="muted">
+        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+    </span>
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if current_status != 'all' %}&status={{ current_status }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" class="btn ghost">Next &raquo;</a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="card" style="text-align: center; padding: 3rem 1rem;">
+    <h3 style="color: #64748b;">No Exit Settlements Found</h3>
+    <p class="muted">No employee Full &amp; Final settlements match your current search or filter criteria.</p>
+    {% if search_query or current_status != 'all' %}
+        <a href="{% url 'offboarding_settlements_list' %}" class="btn" style="margin-top: 1rem;">Reset Filters</a>
+    {% else %}
+        <a href="{% url 'offboarding_requests_list' %}" class="btn" style="margin-top: 1rem;">Go to Resignation Requests</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

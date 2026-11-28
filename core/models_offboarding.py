@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -261,4 +262,158 @@ class ExitClearanceItem(models.Model):
             self.notes = notes
         self.save(update_fields=["status", "cleared_by", "notes", "updated_at"])
         self.exit_request.check_clearance_completion()
+
+
+class ExitSettlement(models.Model):
+    """
+    Automated Full & Final (F&F) Financial Settlement Calculation Engine.
+    Encapsulates final earnings, statutory deductions, notice shortfall recoveries,
+    asset/advance adjustments, and net payable or recoverable balance.
+    """
+    STATUS_DRAFT = "DRAFT"
+    STATUS_CALCULATED = "CALCULATED"
+    STATUS_APPROVED = "APPROVED"
+    STATUS_SETTLED = "SETTLED"
+
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, "Draft"),
+        (STATUS_CALCULATED, "Calculated (Pending Review)"),
+        (STATUS_APPROVED, "Approved by Finance"),
+        (STATUS_SETTLED, "Settled & Disbursed"),
+    ]
+
+    exit_request = models.OneToOneField(
+        ExitRequest,
+        on_delete=models.CASCADE,
+        related_name="settlement"
+    )
+    employee = models.ForeignKey(
+        "core.Employee",
+        on_delete=models.PROTECT,
+        related_name="exit_settlements"
+    )
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.PROTECT,
+        related_name="exit_settlements"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_DRAFT
+    )
+
+    # 1. Base Compensation
+    last_drawn_basic = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    daily_basic_rate = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+
+    # Prorated final month salary
+    worked_days_in_final_month = models.IntegerField(default=0)
+    days_in_final_month = models.IntegerField(default=30)
+    prorated_salary = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    # Unused leave encashment
+    leave_encashment_days = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal("0.00"))
+    leave_encashment_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    # Approved unpaid expense claims
+    reimbursable_expenses_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    # Gratuity
+    tenure_years = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0.00"))
+    is_gratuity_eligible = models.BooleanField(default=False)
+    gratuity_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    # Additional custom earnings / bonus / incentives
+    additional_earnings = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    additional_earnings_notes = models.CharField(max_length=255, blank=True)
+
+    # Total earnings
+    total_earnings = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    # 2. Deductible Recoveries
+    # Notice period shortfall recovery
+    notice_shortfall_days = models.IntegerField(default=0)
+    notice_shortfall_recovery = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    # Outstanding salary advances or equipment damages
+    salary_advance_recovery = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    asset_damage_recovery = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    # Final statutory deductions
+    epf_deduction = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    esi_deduction = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    professional_tax = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    tds_deduction = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    total_statutory_deductions = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    # Additional custom deductions
+    additional_deductions = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    additional_deductions_notes = models.CharField(max_length=255, blank=True)
+
+    # Total deductions
+    total_deductions = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    # 3. Net Balance
+    net_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    is_recoverable = models.BooleanField(default=False)
+
+    # Audit & Process Controls
+    calculated_at = models.DateTimeField(auto_now_add=True)
+    calculated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="calculated_exit_settlements"
+    )
+    finalized_at = models.DateTimeField(null=True, blank=True)
+    finalized_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="finalized_exit_settlements"
+    )
+    remarks = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "exit_settlement"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"ExitSettlement: {self.employee.name} (Net: ₹{self.net_amount})"
+
+    @property
+    def abs_net_amount(self):
+        return abs(self.net_amount)
+
+    @property
+    def payment_type_label(self):
+        return "Net Recoverable (Employee Owes Company)" if self.is_recoverable else "Net Payable (Company Pays Employee)"
+
+    def recalculate_totals(self):
+        """Recalculates total earnings, total deductions, and net payable/recoverable balance."""
+        self.total_statutory_deductions = (
+            self.epf_deduction + self.esi_deduction + self.professional_tax + self.tds_deduction
+        )
+        self.total_earnings = (
+            self.prorated_salary
+            + self.leave_encashment_amount
+            + self.reimbursable_expenses_amount
+            + self.gratuity_amount
+            + self.additional_earnings
+        )
+        self.total_deductions = (
+            self.notice_shortfall_recovery
+            + self.salary_advance_recovery
+            + self.asset_damage_recovery
+            + self.total_statutory_deductions
+            + self.additional_deductions
+        )
+        self.net_amount = self.total_earnings - self.total_deductions
+        self.is_recoverable = (self.net_amount < 0)
+
 

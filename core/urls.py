@@ -130,4 +130,7 @@ urlpatterns = [
     path("offboarding/requests/<int:pk>/review/", views_offboarding.exit_request_review, name="offboarding_request_review"),
     path("offboarding/clearance/", views_offboarding.exit_clearance_console, name="offboarding_clearance_console"),
     path("offboarding/clearance/<int:pk>/action/", views_offboarding.exit_clearance_action, name="offboarding_clearance_action"),
+    path("offboarding/settlements/", views_offboarding.exit_settlements_list, name="offboarding_settlements_list"),
+    path("offboarding/requests/<int:pk>/settlement/", views_offboarding.exit_settlement_detail, name="offboarding_settlement_detail"),
+    path("offboarding/requests/<int:pk>/settlement/action/", views_offboarding.exit_settlement_action, name="offboarding_settlement_action"),
 ]

@@ -10,11 +10,17 @@ from django.utils import timezone
 
 from apps.organizations.tenancy import scope_queryset
 from core import roles
-from core.forms_offboarding import ExitRequestReviewForm, ResignationSubmissionForm
+from core.forms_offboarding import (
+    ExitRequestReviewForm,
+    ExitSettlementAdjustmentForm,
+    ResignationSubmissionForm,
+)
 from core.models import Employee
-from core.models_offboarding import ExitClearanceItem, ExitRequest
+from core.models_offboarding import ExitClearanceItem, ExitRequest, ExitSettlement
 from core.services.offboarding import (
     action_clearance_item,
+    approve_fnf_settlement,
+    calculate_fnf_settlement,
     generate_exit_clearance_items,
     review_exit_request,
     submit_resignation,
@@ -456,4 +462,152 @@ def exit_clearance_action(request, pk):
 
     next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or reverse("offboarding_clearance_console")
     return redirect(next_url)
+
+
+@login_required
+def exit_settlement_detail(request, pk):
+    """
+    Full & Final (F&F) Settlement review and calculation inspection console.
+    Displays itemized payable earnings, deductible recoveries, statutory breakdown,
+    and adjustments form.
+    """
+    if not _can_manage_offboarding(request.user):
+        raise PermissionDenied("You do not have permission to view exit settlements.")
+
+    exit_req = get_object_or_404(
+        scope_queryset(
+            ExitRequest.objects.select_related(
+                "employee",
+                "employee__department",
+                "employee__position",
+                "organization",
+            ),
+            request.user
+        ),
+        pk=pk
+    )
+
+    # Auto-generate draft settlement if it doesn't exist yet
+    if hasattr(exit_req, "settlement") and exit_req.settlement is not None:
+        settlement = exit_req.settlement
+    else:
+        settlement = calculate_fnf_settlement(exit_req, user=request.user)
+
+    form = ExitSettlementAdjustmentForm(settlement=settlement)
+
+    return render(
+        request,
+        "offboarding/settlement_detail.html",
+        {
+            "exit_req": exit_req,
+            "settlement": settlement,
+            "form": form,
+            "title": f"F&F Settlement: {exit_req.employee.name}",
+            "n": "offboarding_settlement_detail",
+        }
+    )
+
+
+@login_required
+def exit_settlement_action(request, pk):
+    """
+    POST action endpoint to recalculate settlement with custom overrides or finalize approval.
+    """
+    if not _can_manage_offboarding(request.user):
+        raise PermissionDenied("You do not have permission to manage exit settlements.")
+
+    if request.method != "POST":
+        return redirect("offboarding_settlement_detail", pk=pk)
+
+    exit_req = get_object_or_404(
+        scope_queryset(ExitRequest.objects.all(), request.user),
+        pk=pk
+    )
+
+    action = request.POST.get("action", "recalculate").strip().lower()
+
+    if action == "approve":
+        if hasattr(exit_req, "settlement") and exit_req.settlement is not None:
+            remarks = request.POST.get("remarks", "")
+            approve_fnf_settlement(exit_req.settlement.pk, user=request.user, remarks=remarks)
+            messages.success(request, f"Full & Final Settlement for {exit_req.employee.name} approved successfully.")
+        else:
+            messages.error(request, "Cannot approve settlement before calculation.")
+    else:
+        # Recalculate with form overrides
+        form = ExitSettlementAdjustmentForm(request.POST)
+        if form.is_valid():
+            overrides = form.cleaned_data
+            calculate_fnf_settlement(exit_req, user=request.user, overrides=overrides)
+            messages.success(request, "Settlement recalculated and updated successfully.")
+        else:
+            messages.error(request, "Failed to recalculate settlement. Check the provided values.")
+
+    return redirect("offboarding_settlement_detail", pk=pk)
+
+
+@login_required
+def exit_settlements_list(request):
+    """
+    Dashboard of all employee Full & Final settlements.
+    Shows net balance breakdown, payment status, and filtering by settlement state.
+    """
+    if not _can_manage_offboarding(request.user):
+        raise PermissionDenied("You do not have permission to view the settlements dashboard.")
+
+    status_filter = request.GET.get("status", "all").strip().upper()
+    search_query = request.GET.get("q", "").strip()
+
+    qs = scope_queryset(
+        ExitSettlement.objects.select_related(
+            "employee",
+            "employee__department",
+            "employee__position",
+            "exit_request",
+            "organization",
+        ),
+        request.user
+    )
+
+    if status_filter in dict(ExitSettlement.STATUS_CHOICES):
+        qs = qs.filter(status=status_filter)
+    elif status_filter == "RECOVERABLE":
+        qs = qs.filter(is_recoverable=True)
+    elif status_filter == "PAYABLE":
+        qs = qs.filter(is_recoverable=False)
+
+    if search_query:
+        qs = qs.filter(
+            models.Q(employee__name__icontains=search_query)
+            | models.Q(employee__email__icontains=search_query)
+            | models.Q(remarks__icontains=search_query)
+        )
+
+    # Scoped metric counters
+    all_settlements = scope_queryset(ExitSettlement.objects.all(), request.user)
+    counts = {
+        "all": all_settlements.count(),
+        "calculated": all_settlements.filter(status=ExitSettlement.STATUS_CALCULATED).count(),
+        "approved": all_settlements.filter(status=ExitSettlement.STATUS_APPROVED).count(),
+        "settled": all_settlements.filter(status=ExitSettlement.STATUS_SETTLED).count(),
+        "recoverable": all_settlements.filter(is_recoverable=True).count(),
+    }
+
+    paginator = Paginator(qs, 15)
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    return render(
+        request,
+        "offboarding/settlements_list.html",
+        {
+            "page_obj": page_obj,
+            "counts": counts,
+            "current_status": status_filter,
+            "search_query": search_query,
+            "title": "Full & Final (F&F) Settlements",
+            "n": "offboarding_settlements_list",
+        }
+    )
+
 

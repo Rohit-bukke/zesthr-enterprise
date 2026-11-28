@@ -513,7 +513,7 @@ class OnboardingTaskAdmin(admin.ModelAdmin):
     search_fields = ("title", "checklist__title", "notes")
 
 
-from .models_offboarding import ExitRequest, ExitClearanceItem
+from .models_offboarding import ExitRequest, ExitClearanceItem, ExitSettlement
 
 
 class ExitClearanceItemInline(admin.TabularInline):
@@ -537,6 +537,15 @@ class ExitClearanceItemAdmin(admin.ModelAdmin):
     list_display = ("item_name", "exit_request", "department_role", "status", "cleared_by", "cleared_at")
     list_filter = ("department_role", "status")
     search_fields = ("item_name", "exit_request__employee__name", "notes")
+
+
+@admin.register(ExitSettlement)
+class ExitSettlementAdmin(TenantAdmin):
+    list_display = ("employee", "exit_request", "total_earnings", "total_deductions", "net_amount", "is_recoverable", "status", "calculated_at")
+    list_filter = ("status", "is_recoverable", "organization")
+    search_fields = ("employee__name", "employee__email", "remarks")
+    readonly_fields = ("created_at", "updated_at", "calculated_at", "net_amount", "is_recoverable")
+
 
 
 
