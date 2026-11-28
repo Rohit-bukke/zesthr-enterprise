@@ -112,7 +112,10 @@
                     </td>
                     <td style="padding: 12px 16px; text-align: right;">
                         <a href="{% url 'offboarding_settlement_detail' stm.exit_request_id %}" class="btn ghost sm">
-                            Inspect Statement &rarr;
+                            Review &rarr;
+                        </a>
+                        <a href="{% url 'offboarding_settlement_statement' stm.exit_request_id %}" target="_blank" class="btn ghost sm" title="Print Statement">
+                            &#128438;
                         </a>
                     </td>
                 </tr>

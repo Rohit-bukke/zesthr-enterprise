@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} | {{ exit_req.organization.name }}</title>
+    <style>
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: #1e293b;
+            background: #f1f5f9;
+            margin: 0;
+            padding: 24px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .page-container {
+            max-width: 840px;
+            margin: 0 auto;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 40px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+        .toolbar {
+            max-width: 840px;
+            margin: 0 auto 16px auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #0f172a;
+            color: #ffffff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid #0f172a;
+        }
+        .btn.ghost {
+            background: #ffffff;
+            color: #334155;
+            border-color: #cbd5e1;
+        }
+        .btn.primary {
+            background: #2563eb;
+            border-color: #2563eb;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 16px;
+            margin-bottom: 24px;
+        }
+        .org-title {
+            font-size: 20px;
+            font-weight: 800;
+            color: #0f172a;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .doc-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #2563eb;
+            margin-top: 4px;
+        }
+        .meta-box {
+            text-align: right;
+            font-size: 12px;
+        }
+        .meta-box strong {
+            font-size: 13px;
+            color: #0f172a;
+        }
+        .section-title {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #0f172a;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 4px;
+            margin: 20px 0 10px 0;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        .info-table td {
+            padding: 4px 6px;
+            vertical-align: top;
+        }
+        .info-table td.lbl {
+            color: #64748b;
+            font-weight: 600;
+            width: 40%;
+        }
+        .info-table td.val {
+            color: #0f172a;
+            font-weight: 600;
+        }
+        .ledger-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            margin-bottom: 16px;
+        }
+        .ledger-table th {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            padding: 8px 10px;
+            text-align: left;
+            font-weight: 700;
+            color: #334155;
+        }
+        .ledger-table td {
+            border: 1px solid #e2e8f0;
+            padding: 6px 10px;
+        }
+        .ledger-table td.num, .ledger-table th.num {
+            text-align: right;
+        }
+        .ledger-table tr.total-row td {
+            font-weight: 800;
+            background: #f8fafc;
+            border-top: 2px solid #cbd5e1;
+        }
+        .summary-card {
+            border: 2px solid {% if settlement.is_recoverable %}#dc2626{% else %}#16a34a{% endif %};
+            background: {% if settlement.is_recoverable %}#fef2f2{% else %}#f0fdf4{% endif %};
+            border-radius: 6px;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 24px 0;
+        }
+        .summary-card .type {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: {% if settlement.is_recoverable %}#991b1b{% else %}#166534{% endif %};
+        }
+        .summary-card .amt {
+            font-size: 26px;
+            font-weight: 800;
+            color: {% if settlement.is_recoverable %}#b91c1c{% else %}#15803d{% endif %};
+            margin-top: 2px;
+        }
+        .badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 3px 8px;
+            border-radius: 4px;
+            background: #e2e8f0;
+            color: #334155;
+        }
+        .badge.cleared {
+            background: #dcfce7;
+            color: #15803d;
+        }
+        .signatures {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-top: 50px;
+            padding-top: 20px;
+        }
+        .sig-box {
+            border-top: 1px solid #94a3b8;
+            padding-top: 8px;
+            font-size: 11px;
+            color: #475569;
+        }
+        .sig-box strong {
+            display: block;
+            font-size: 13px;
+            color: #0f172a;
+            margin-bottom: 2px;
+        }
+
+        @media print {
+            body {
+                background: #ffffff;
+                padding: 0;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .page-container {
+                box-shadow: none;
+                border: none;
+                padding: 0;
+                max-width: 100%;
+            }
+            @page {
+                size: A4;
+                margin: 15mm;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="toolbar no-print">
+    <a href="{% url 'offboarding_settlement_detail' exit_req.pk %}" class="btn ghost">&larr; Back to Settlement Console</a>
+    <button onclick="window.print()" class="btn primary">&#128438; Print / Save as PDF</button>
+</div>
+
+<div class="page-container">
+    <!-- Header -->
+    <header class="header">
+        <div>
+            <div class="org-title">{{ exit_req.organization.name }}</div>
+            <div class="doc-title">Full &amp; Final Settlement Statement</div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Official Relieving &amp; Financial Clearance Certificate</div>
+        </div>
+        <div class="meta-box">
+            <div><strong>Statement Ref:</strong> {{ statement_number }}</div>
+            <div><strong>Issue Date:</strong> {{ today|date:"d M Y" }}</div>
+            <div>
+                <strong>Status:</strong>
+                {% if settlement.is_locked %}
+                    <span class="badge cleared">&#128274; Settled &amp; Locked</span>
+                {% elif settlement.status == "APPROVED" %}
+                    <span class="badge cleared">Approved</span>
+                {% else %}
+                    <span class="badge">Calculated (Draft)</span>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    <!-- Particulars Grid -->
+    <div class="grid-2">
+        <div>
+            <div class="section-title">Employee Particulars</div>
+            <table class="info-table">
+                <tr>
+                    <td class="lbl">Employee Name:</td>
+                    <td class="val">{{ employee.name }}</td>
+                </tr>
+                <tr>
+                    <td class="lbl">Designation:</td>
+                    <td class="val">{{ employee.position.title|default:"Team Member" }}</td>
+                </tr>
+                <tr>
+                    <td class="lbl">Department:</td>
+                    <td class="val">{{ employee.department.name|default:"General" }}</td>
+                </tr>
+                <tr>
+                    <td class="lbl">Date of Joining:</td>
+                    <td class="val">{{ employee.joined_on|date:"d M Y" }}</td>
+                </tr>
+                <tr>
+                    <td class="lbl">Resignation Date:</td>
+                    <td class="val">{{ exit_req.resignation_date|date:"d M Y" }}</td>
+                </tr>
+                <tr>
+                    <td class="lbl">Official LWD:</td>
+                    <td class="val">{{ settlement.exit_request.official_lwd|default:settlement.exit_request.requested_lwd|date:"d M Y" }}</td>
+                </tr>
+                <tr>
+                    <td class="lbl">Total Service Tenure:</td>
+                    <td class="val">{{ settlement.tenure_years }} Years</td>
+                </tr>
+            </table>
+        </div>
+
+        <div>
+            <div class="section-title">Statutory &amp; Banking Details</div>
+            <table class="info-table">
+                <tr>
+                    <td class="lbl">Monthly Basic Salary:</td>
+                    <td class="val">₹{{ settlement.last_drawn_basic }}</td>
+                </tr>
+                <tr>
+                    <td class="lbl">Daily Basic Rate:</td>
+                    <td class="val">₹{{ settlement.daily_basic_rate }} / day</td>
+                </tr>
+                <tr>
+                    <td class="lbl">PAN Number:</td>
+                    <td class="val">{{ statutory_profile.pan_number|default:"-" }}</td>
+                </tr>
+                <tr>
+                    <td class="lbl">UAN / PF Number:</td>
+                    <td class="val">{{ statutory_profile.uan_number|default:statutory_profile.pf_number|default:"-" }}</td>
+                </tr>
+                <tr>
+                    <td class="lbl">Bank Name:</td>
+                    <td class="val">{{ bank_account.bank_name|default:"Corporate Salary Account" }}</td>
+                </tr>
+                <tr>
+                    <td class="lbl">Bank Account No:</td>
+                    <td class="val">{{ bank_account.account_number|default:"On File" }}</td>
+                </tr>
+                <tr>
+                    <td class="lbl">IFSC Code:</td>
+                    <td class="val">{{ bank_account.ifsc_code|default:"-" }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- Multi-Department Clearance Verification -->
+    <div class="section-title">Departmental Exit Clearance Status</div>
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px;">
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px; text-align: center;">
+            <div style="font-size: 11px; font-weight: 700; color: #334155;">IT Systems</div>
+            <div style="font-size: 10px; color: #15803d; font-weight: 700; margin-top: 2px;">&#10003; All Hardware Revoked</div>
+        </div>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px; text-align: center;">
+            <div style="font-size: 11px; font-weight: 700; color: #334155;">Finance &amp; Accounts</div>
+            <div style="font-size: 10px; color: #15803d; font-weight: 700; margin-top: 2px;">&#10003; No Dues Verified</div>
+        </div>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px; text-align: center;">
+            <div style="font-size: 11px; font-weight: 700; color: #334155;">Human Resources</div>
+            <div style="font-size: 10px; color: #15803d; font-weight: 700; margin-top: 2px;">&#10003; Exit Interview &amp; ID Card</div>
+        </div>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px; text-align: center;">
+            <div style="font-size: 11px; font-weight: 700; color: #334155;">Admin &amp; Facilities</div>
+            <div style="font-size: 10px; color: #15803d; font-weight: 700; margin-top: 2px;">&#10003; Physical Access Revoked</div>
+        </div>
+    </div>
+
+    <!-- Financial Ledger Tables -->
+    <div class="grid-2">
+        <!-- Earnings -->
+        <div>
+            <div class="section-title">1. Payable Earnings</div>
+            <table class="ledger-table">
+                <thead>
+                    <tr>
+                        <th>Earnings Item</th>
+                        <th class="num">Amount (₹)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            Prorated Salary
+                            <div style="font-size: 10px; color: #64748b;">({{ settlement.worked_days_in_final_month }}/{{ settlement.days_in_final_month }} calendar days)</div>
+                        </td>
+                        <td class="num">{{ settlement.prorated_salary }}</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            Unused Leave Encashment
+                            <div style="font-size: 10px; color: #64748b;">({{ settlement.leave_encashment_days }} earned days @ ₹{{ settlement.daily_basic_rate }})</div>
+                        </td>
+                        <td class="num">{{ settlement.leave_encashment_amount }}</td>
+                    </tr>
+                    <tr>
+                        <td>Reimbursable Expenses</td>
+                        <td class="num">{{ settlement.reimbursable_expenses_amount }}</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            Statutory Gratuity
+                            <div style="font-size: 10px; color: #64748b;">
+                                {% if settlement.is_gratuity_eligible %}
+                                    Eligible (15 &times; Basic &times; {{ settlement.tenure_years }} / 26)
+                                {% else %}
+                                    Tenure &lt; 5 Yrs
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="num">{{ settlement.gratuity_amount }}</td>
+                    </tr>
+                    {% if settlement.additional_earnings > 0 %}
+                    <tr>
+                        <td>
+                            Additional Earnings / Bonus
+                            {% if settlement.additional_earnings_notes %}
+                                <div style="font-size: 10px; color: #64748b;">{{ settlement.additional_earnings_notes }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="num">{{ settlement.additional_earnings }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr class="total-row">
+                        <td>Total Earnings (A)</td>
+                        <td class="num" style="color: #15803d;">₹{{ settlement.total_earnings }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Deductions -->
+        <div>
+            <div class="section-title">2. Deductible Recoveries</div>
+            <table class="ledger-table">
+                <thead>
+                    <tr>
+                        <th>Deduction Item</th>
+                        <th class="num">Amount (₹)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            Notice Shortfall Recovery
+                            <div style="font-size: 10px; color: #64748b;">
+                                {% if settlement.exit_request.shortfall_waived %}
+                                    Shortfall Waived
+                                {% elif settlement.notice_shortfall_days > 0 %}
+                                    {{ settlement.notice_shortfall_days }} days @ ₹{{ settlement.daily_basic_rate }}
+                                {% else %}
+                                    Full Notice Served
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="num">{{ settlement.notice_shortfall_recovery }}</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            Final Statutory Deductions
+                            <div style="font-size: 10px; color: #64748b;">PF: ₹{{ settlement.epf_deduction }}, ESI: ₹{{ settlement.esi_deduction }}, PT: ₹{{ settlement.professional_tax }}, TDS: ₹{{ settlement.tds_deduction }}</div>
+                        </td>
+                        <td class="num">{{ settlement.total_statutory_deductions }}</td>
+                    </tr>
+                    <tr>
+                        <td>Salary Advance Recovery</td>
+                        <td class="num">{{ settlement.salary_advance_recovery }}</td>
+                    </tr>
+                    <tr>
+                        <td>Asset / Equipment Damage</td>
+                        <td class="num">{{ settlement.asset_damage_recovery }}</td>
+                    </tr>
+                    {% if settlement.additional_deductions > 0 %}
+                    <tr>
+                        <td>
+                            Additional Deductions
+                            {% if settlement.additional_deductions_notes %}
+                                <div style="font-size: 10px; color: #64748b;">{{ settlement.additional_deductions_notes }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="num">{{ settlement.additional_deductions }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr class="total-row">
+                        <td>Total Deductions (B)</td>
+                        <td class="num" style="color: #b91c1c;">₹{{ settlement.total_deductions }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Net Settlement Figure Box -->
+    <div class="summary-card">
+        <div>
+            <div class="type">{{ settlement.payment_type_label }} (A - B)</div>
+            <div class="amt">₹{{ settlement.abs_net_amount }}</div>
+            <div style="font-size: 11px; color: #475569; margin-top: 4px;">
+                Gross Earnings: <strong>₹{{ settlement.total_earnings }}</strong> &bull; Total Recoveries: <strong>₹{{ settlement.total_deductions }}</strong>
+            </div>
+        </div>
+        <div style="text-align: right; font-size: 12px; color: #475569;">
+            {% if settlement.is_locked %}
+                <div><strong>Audited &amp; Signed Off</strong></div>
+                <div>{{ settlement.signed_off_at|date:"d M Y, H:i" }}</div>
+                <div>by {{ settlement.signed_off_by.username }}</div>
+            {% elif settlement.status == "APPROVED" %}
+                <div><strong>Approved by Finance</strong></div>
+                <div>{{ settlement.finalized_at|date:"d M Y, H:i" }}</div>
+            {% else %}
+                <div><strong>Calculation Draft</strong></div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if settlement.remarks or settlement.sign_off_notes %}
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px; font-size: 11px; color: #334155; margin-bottom: 20px;">
+        <strong>Audit Remarks / Transition Terms:</strong>
+        <div>{{ settlement.remarks|default:"" }}</div>
+        {% if settlement.sign_off_notes %}
+            <div style="margin-top: 4px;"><em>Sign-off note: {{ settlement.sign_off_notes }}</em></div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Legal Declaration & Signatory Blocks -->
+    <p style="font-size: 10px; color: #64748b; line-height: 1.4; margin-top: 24px;">
+        <strong>Declaration:</strong> I acknowledge receipt of this Full &amp; Final settlement statement and confirm that all company assets, access keys, and confidential property have been surrendered. Upon disbursement of the net balance stated above, I have no further financial or contractual claims against the organization.
+    </p>
+
+    <div class="signatures">
+        <div class="sig-box">
+            <strong>For {{ exit_req.organization.name }}</strong>
+            <div>Authorized HR / Finance Signatory</div>
+            <div style="margin-top: 4px;">Date: {{ today|date:"d M Y" }}</div>
+        </div>
+
+        <div class="sig-box" style="text-align: right;">
+            <strong>{{ employee.name }}</strong>
+            <div>Employee Signature &amp; Acknowledgment</div>
+            <div style="margin-top: 4px;">Date: ________________________</div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

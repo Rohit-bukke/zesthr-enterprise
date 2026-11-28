@@ -359,6 +359,17 @@ class ExitSettlement(models.Model):
     is_recoverable = models.BooleanField(default=False)
 
     # Audit & Process Controls
+    statement_number = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    is_locked = models.BooleanField(default=False, help_text="Locked once final HR sign-off is completed")
+    signed_off_at = models.DateTimeField(null=True, blank=True)
+    signed_off_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="signed_off_exit_settlements"
+    )
+    sign_off_notes = models.TextField(blank=True)
     calculated_at = models.DateTimeField(auto_now_add=True)
     calculated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -393,6 +404,14 @@ class ExitSettlement(models.Model):
     @property
     def payment_type_label(self):
         return "Net Recoverable (Employee Owes Company)" if self.is_recoverable else "Net Payable (Company Pays Employee)"
+
+    def ensure_statement_number(self):
+        if not self.statement_number:
+            org_code = getattr(self.organization, "code", "HRMS")
+            period = timezone.localdate().strftime("%Y%m")
+            self.statement_number = f"FNF-{org_code}-{period}-{self.pk:04d}"
+            self.save(update_fields=["statement_number"])
+        return self.statement_number
 
     def recalculate_totals(self):
         """Recalculates total earnings, total deductions, and net payable/recoverable balance."""

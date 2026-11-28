@@ -21,6 +21,7 @@ from core.services.offboarding import (
     action_clearance_item,
     approve_fnf_settlement,
     calculate_fnf_settlement,
+    finalize_fnf_and_deactivate_employee,
     generate_exit_clearance_items,
     review_exit_request,
     submit_resignation,
@@ -533,6 +534,20 @@ def exit_settlement_action(request, pk):
             messages.success(request, f"Full & Final Settlement for {exit_req.employee.name} approved successfully.")
         else:
             messages.error(request, "Cannot approve settlement before calculation.")
+    elif action == "sign_off":
+        if hasattr(exit_req, "settlement") and exit_req.settlement is not None:
+            sign_off_notes = request.POST.get("sign_off_notes", "").strip()
+            try:
+                finalize_fnf_and_deactivate_employee(exit_req.settlement.pk, user=request.user, sign_off_notes=sign_off_notes)
+                messages.success(
+                    request,
+                    f"Official F&F sign-off completed for {exit_req.employee.name}. "
+                    "Settlement locked, employee status set to Resigned, and user login deactivated."
+                )
+            except ValidationError as e:
+                messages.error(request, str(e))
+        else:
+            messages.error(request, "Cannot sign off settlement before it is calculated.")
     else:
         # Recalculate with form overrides
         form = ExitSettlementAdjustmentForm(request.POST)
@@ -544,6 +559,70 @@ def exit_settlement_action(request, pk):
             messages.error(request, "Failed to recalculate settlement. Check the provided values.")
 
     return redirect("offboarding_settlement_detail", pk=pk)
+
+
+@login_required
+def exit_settlement_statement(request, pk):
+    """
+    Printable / PDF-ready official Full & Final (F&F) Settlement Statement sheet.
+    Contains complete employee credentials, tenure, itemized earnings & deductions,
+    net payable/recoverable balance in bold words & figures, and dual signatory blocks.
+    """
+    if not _can_manage_offboarding(request.user):
+        raise PermissionDenied("You do not have permission to view settlement statements.")
+
+    exit_req = get_object_or_404(
+        scope_queryset(
+            ExitRequest.objects.select_related(
+                "employee",
+                "employee__department",
+                "employee__position",
+                "organization",
+            ).prefetch_related(
+                "clearance_items",
+                "clearance_items__cleared_by",
+            ),
+            request.user
+        ),
+        pk=pk
+    )
+
+    if not hasattr(exit_req, "settlement") or exit_req.settlement is None:
+        messages.warning(request, "Generating draft settlement statement.")
+        settlement = calculate_fnf_settlement(exit_req, user=request.user)
+    else:
+        settlement = exit_req.settlement
+
+    statement_number = settlement.ensure_statement_number()
+
+    employee = exit_req.employee
+    try:
+        statutory_profile = employee.statutory_profile
+    except Exception:
+        statutory_profile = None
+
+    try:
+        bank_account = employee.bank_account
+    except Exception:
+        bank_account = None
+
+    today = timezone.localdate()
+
+    return render(
+        request,
+        "offboarding/statement.html",
+        {
+            "exit_req": exit_req,
+            "settlement": settlement,
+            "employee": employee,
+            "statutory_profile": statutory_profile,
+            "bank_account": bank_account,
+            "statement_number": statement_number,
+            "today": today,
+            "title": f"F&F Statement - {statement_number}",
+        }
+    )
+
 
 
 @login_required

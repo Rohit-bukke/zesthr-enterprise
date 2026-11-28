@@ -12,8 +12,9 @@ from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
 
-from core.models import Employee, ExpenseClaim, LeaveEntitlement
+from core.models import Employee, EmploymentHistory, ExpenseClaim, LeaveEntitlement, SecurityEvent
 from core.models_offboarding import ExitClearanceItem, ExitRequest, ExitSettlement
+from core.services.accounts import record_event
 from core.services.leave_balances import balance
 from core.services.statutory import calculate_statutory_deductions
 
@@ -491,4 +492,79 @@ def approve_fnf_settlement(settlement_id: int, user, remarks: str = "") -> ExitS
             exit_req.save(update_fields=["status", "updated_at"])
 
     return settlement
+
+
+def finalize_fnf_and_deactivate_employee(
+    settlement_id: int,
+    user,
+    sign_off_notes: str = ""
+) -> ExitSettlement:
+    """
+    Executes final HR sign-off on Full & Final Settlement:
+    1. Locks the settlement snapshot (status = SETTLED, is_locked = True).
+    2. Ensures immutable statement reference number is assigned.
+    3. Deactivates employee employment status to RESIGNED and sets is_active = False.
+    4. Revokes web login access by deactivating User account (User.is_active = False).
+    5. Records immutable audit trails in EmploymentHistory and SecurityEvent.
+    6. Marks ExitRequest status as SETTLED.
+    """
+    with transaction.atomic():
+        settlement = ExitSettlement.objects.select_for_update().get(pk=settlement_id)
+        if settlement.is_locked:
+            raise ValidationError("This Full & Final settlement has already been signed off and locked.")
+
+        exit_req = settlement.exit_request
+        employee = settlement.employee
+        lwd = exit_req.official_lwd or exit_req.requested_lwd or timezone.localdate()
+
+        # 1. Lock Settlement
+        settlement.status = ExitSettlement.STATUS_SETTLED
+        settlement.is_locked = True
+        settlement.signed_off_by = user
+        settlement.signed_off_at = timezone.now()
+        if sign_off_notes:
+            settlement.sign_off_notes = sign_off_notes
+        settlement.ensure_statement_number()
+        settlement.save()
+
+        # 2. Update Exit Request Status
+        exit_req.status = ExitRequest.STATUS_SETTLED
+        exit_req.save(update_fields=["status", "updated_at"])
+
+        # 3. Transactional Employee Deactivation
+        old_status = employee.employment_status
+        employee.employment_status = "RESIGNED"
+        employee.separation_date = lwd
+        employee.separation_reason = f"F&F Settled: {exit_req.get_reason_category_display()}"
+        employee.save()  # Employee.clean() automatically sets is_active = False
+
+        # 4. User Login Deactivation
+        if employee.user:
+            employee.user.is_active = False
+            employee.user.save(update_fields=["is_active"])
+            record_event(
+                SecurityEvent.ACCOUNT_DEACTIVATED,
+                user=employee.user,
+                username=employee.user.username,
+                detail=f"Account deactivated upon offboarding F&F final sign-off by {user.username} (Statement: {settlement.statement_number})",
+            )
+
+        # 5. Immutable Audit Trail in EmploymentHistory
+        EmploymentHistory.objects.create(
+            employee=employee,
+            field="employment_status",
+            old_value=old_status,
+            new_value="RESIGNED",
+            changed_by=user,
+        )
+        EmploymentHistory.objects.create(
+            employee=employee,
+            field="separation",
+            old_value="",
+            new_value=f"F&F Settled (Ref: {settlement.statement_number})",
+            changed_by=user,
+        )
+
+    return settlement
+
 

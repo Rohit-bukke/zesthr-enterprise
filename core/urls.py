@@ -133,4 +133,5 @@ urlpatterns = [
     path("offboarding/settlements/", views_offboarding.exit_settlements_list, name="offboarding_settlements_list"),
     path("offboarding/requests/<int:pk>/settlement/", views_offboarding.exit_settlement_detail, name="offboarding_settlement_detail"),
     path("offboarding/requests/<int:pk>/settlement/action/", views_offboarding.exit_settlement_action, name="offboarding_settlement_action"),
+    path("offboarding/requests/<int:pk>/settlement/statement/", views_offboarding.exit_settlement_statement, name="offboarding_settlement_statement"),
 ]
