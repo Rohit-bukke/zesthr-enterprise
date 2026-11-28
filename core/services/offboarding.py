@@ -425,7 +425,7 @@ def calculate_fnf_settlement(
 
     # Create or update ExitSettlement instance
     with transaction.atomic():
-        settlement, created = ExitSettlement.objects.get_or_create(
+        settlement, created = ExitSettlement.objects.select_for_update().get_or_create(
             exit_request=exit_request,
             defaults={
                 "employee": employee,
@@ -434,6 +434,8 @@ def calculate_fnf_settlement(
                 "calculated_by": user,
             }
         )
+        if not created and settlement.is_locked:
+            raise ValidationError("This Full & Final settlement has been signed off and locked and cannot be recalculated.")
 
         settlement.last_drawn_basic = last_drawn_basic
         settlement.daily_basic_rate = daily_basic_rate
@@ -478,6 +480,8 @@ def approve_fnf_settlement(settlement_id: int, user, remarks: str = "") -> ExitS
     """
     with transaction.atomic():
         settlement = ExitSettlement.objects.select_for_update().get(pk=settlement_id)
+        if settlement.is_locked:
+            raise ValidationError("This Full & Final settlement has been signed off and locked.")
         settlement.status = ExitSettlement.STATUS_APPROVED
         settlement.finalized_by = user
         settlement.finalized_at = timezone.now()

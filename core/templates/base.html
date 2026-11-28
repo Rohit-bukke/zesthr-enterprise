@@ -45,29 +45,36 @@
 
     <!-- EMPLOYEES -->
     {% if perms.core.view_employee or perms.core.view_all_attendance %}
-    <details {% if 'employee' in n or 'department' in n or 'designation' in n or n == 'my_profile' or 'onboarding' in n %}open{% endif %}><summary>Employees</summary>
+    <details {% if 'employee' in n or 'department' in n or 'designation' in n or n == 'my_profile' or 'onboarding' in n or 'offboarding' in n or 'settlement' in n or 'resignation' in n %}open{% endif %}><summary>Employees</summary>
       <a class="{% if n == 'employee_list' %}on{% endif %}" href="{% url 'employee_list' %}">All Employees</a>
       {% if perms.core.add_employee %}<a class="{% if n == 'employee_add' %}on{% endif %}" href="{% url 'employee_add' %}">Add Employee</a>{% endif %}
       {% if perms.core.add_employee or perms.core.change_employee %}
         <a class="{% if n == 'onboarding_invitations' %}on{% endif %}" href="{% url 'onboarding_invitations' %}">Onboarding Invitations</a>
         <a class="{% if 'onboarding_review' in n %}on{% endif %}" href="{% url 'onboarding_review_queue' %}">Onboarding Verification</a>
         <a class="{% if n == 'onboarding_tracker' %}on{% endif %}" href="{% url 'onboarding_tracker' %}">Task Tracker</a>
-        <a class="{% if n == 'offboarding_requests_list' %}on{% endif %}" href="{% url 'offboarding_requests_list' %}">Exit & Resignations</a>
+        <a class="{% if 'offboarding_request' in n %}on{% endif %}" href="{% url 'offboarding_requests_list' %}">Exit &amp; Resignations</a>
         <a class="{% if n == 'offboarding_clearance_console' %}on{% endif %}" href="{% url 'offboarding_clearance_console' %}">Exit Clearance</a>
-        <a class="{% if 'settlement' in n %}on{% endif %}" href="{% url 'offboarding_settlements_list' %}">F&F Settlements</a>
+      {% elif is_correction_reviewer %}
+        <a class="{% if 'offboarding_request' in n %}on{% endif %}" href="{% url 'offboarding_requests_list' %}">Exit &amp; Resignations</a>
+      {% endif %}
+      {% if user.is_superuser or user.is_staff or perms.core.view_employee_pay or perms.core.generate_payroll or perms.core.deactivate_employee %}
+        <a class="{% if 'settlement' in n %}on{% endif %}" href="{% url 'offboarding_settlements_list' %}">F&amp;F Settlements</a>
       {% endif %}
       <a class="{% if 'department' in n %}on{% endif %}" href="{% url 'department_list' %}">Departments</a>
       <a class="{% if 'designation' in n %}on{% endif %}" href="{% url 'designation_list' %}">Designations</a>
       {% if user.employee_profile %}
         <a class="{% if n == 'my_profile' or n == 'my_profile_edit' %}on{% endif %}" href="{% url 'my_profile' %}">My Profile</a>
-        <a class="{% if 'resignation' in n %}on{% endif %}" href="{% url 'offboarding_resignation_submit' %}">Resignation & Exit</a>
+        <a class="{% if 'resignation' in n %}on{% endif %}" href="{% url 'offboarding_resignation_submit' %}">Resignation &amp; Exit</a>
         {% if perms.core.view_all_attendance %}<a class="{% if n == 'my_portal' %}on{% endif %}" href="{% url 'my_portal' %}">My portal</a>{% endif %}
       {% endif %}
     </details>
     {% elif user.employee_profile %}
-    <details {% if n == 'my_profile' or n == 'my_profile_edit' or 'resignation' in n %}open{% endif %}><summary>Employees</summary>
+    <details {% if n == 'my_profile' or n == 'my_profile_edit' or 'resignation' in n or 'offboarding_request' in n %}open{% endif %}><summary>Employees</summary>
       <a class="{% if n == 'my_profile' or n == 'my_profile_edit' %}on{% endif %}" href="{% url 'my_profile' %}">My Profile</a>
-      <a class="{% if 'resignation' in n %}on{% endif %}" href="{% url 'offboarding_resignation_submit' %}">Resignation & Exit</a>
+      <a class="{% if 'resignation' in n %}on{% endif %}" href="{% url 'offboarding_resignation_submit' %}">Resignation &amp; Exit</a>
+      {% if is_correction_reviewer %}
+        <a class="{% if 'offboarding_request' in n %}on{% endif %}" href="{% url 'offboarding_requests_list' %}">Team Exit Requests</a>
+      {% endif %}
     </details>
     {% endif %}
 

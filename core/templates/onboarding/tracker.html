@@ -55,7 +55,7 @@
         </div>
         <div>
             <select name="status" class="form-control" onchange="this.form.submit()">
-                <option value="all" {% if current_status == 'all' %}selected{% endif %}>All Checklist Statuses</option>
+                <option value="ALL" {% if current_status == 'ALL' %}selected{% endif %}>All Checklist Statuses</option>
                 <option value="PENDING" {% if current_status == 'PENDING' %}selected{% endif %}>Pending</option>
                 <option value="IN_PROGRESS" {% if current_status == 'IN_PROGRESS' %}selected{% endif %}>In Progress</option>
                 <option value="COMPLETED" {% if current_status == 'COMPLETED' %}selected{% endif %}>Completed</option>

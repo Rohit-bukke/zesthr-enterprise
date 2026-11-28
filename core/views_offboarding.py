@@ -28,14 +28,54 @@ from core.services.offboarding import (
 )
 
 
-def _can_manage_offboarding(user):
-    """Checks if user has HR, administrative, or managerial privileges to review exit requests."""
+def _is_hr_or_admin_offboarding(user):
+    """Checks if user has HR or administrative authority over org-wide offboarding."""
     return (
         user.is_superuser
         or user.is_staff
-        or user.has_perm(roles.VIEW_EMPLOYEE)
         or user.has_perm(roles.CHANGE_EMPLOYEE)
+        or user.has_perm(roles.ADD_EMPLOYEE)
+        or user.has_perm(roles.DEACTIVATE_EMPLOYEE)
+    )
+
+
+def _can_manage_offboarding(user):
+    """Checks if user has HR, administrative, or managerial privileges to review exit requests."""
+    return (
+        _is_hr_or_admin_offboarding(user)
         or (hasattr(user, "employee_profile") and user.employee_profile.direct_reports.exists())
+    )
+
+
+def _can_manage_clearance(user):
+    """Checks if user belongs to HR, Admin, or Finance/Payroll to clear exit checklist gates."""
+    return (
+        _is_hr_or_admin_offboarding(user)
+        or user.has_perm(roles.VIEW_EMPLOYEE_PAY)
+        or user.has_perm(roles.GENERATE_PAYROLL)
+    )
+
+
+def _can_manage_settlements(user):
+    """Checks if user has Payroll, Finance, HR Admin, or Superuser privileges to view F&F settlements."""
+    return (
+        user.is_superuser
+        or user.is_staff
+        or user.has_perm(roles.VIEW_EMPLOYEE_PAY)
+        or user.has_perm(roles.GENERATE_PAYROLL)
+        or user.has_perm(roles.CHANGE_EMPLOYEE_PAY)
+        or user.has_perm(roles.DEACTIVATE_EMPLOYEE)
+    )
+
+
+def _can_mutate_settlements(user):
+    """Checks if user can recalculate, approve, or sign off F&F settlements."""
+    return (
+        user.is_superuser
+        or user.is_staff
+        or user.has_perm(roles.GENERATE_PAYROLL)
+        or user.has_perm(roles.CHANGE_EMPLOYEE_PAY)
+        or user.has_perm(roles.DEACTIVATE_EMPLOYEE)
     )
 
 
@@ -155,12 +195,7 @@ def exit_requests_list(request):
     )
 
     # Restrict non-HR/Admins to their own direct reports
-    is_hr_or_admin = (
-        request.user.is_superuser
-        or request.user.is_staff
-        or request.user.has_perm(roles.VIEW_EMPLOYEE)
-        or request.user.has_perm(roles.CHANGE_EMPLOYEE)
-    )
+    is_hr_or_admin = _is_hr_or_admin_offboarding(request.user)
     if not is_hr_or_admin:
         emp = getattr(request.user, "employee_profile", None)
         if emp:
@@ -217,20 +252,22 @@ def exit_request_detail(request, pk):
     if not _can_manage_offboarding(request.user):
         raise PermissionDenied("You do not have permission to view exit requests.")
 
-    exit_req = get_object_or_404(
-        scope_queryset(
-            ExitRequest.objects.select_related(
-                "employee",
-                "employee__department",
-                "employee__position",
-                "employee__manager",
-                "reviewed_by",
-                "organization",
-            ),
-            request.user
+    qs = scope_queryset(
+        ExitRequest.objects.select_related(
+            "employee",
+            "employee__department",
+            "employee__position",
+            "employee__manager",
+            "reviewed_by",
+            "organization",
         ),
-        pk=pk
+        request.user
     )
+    if not _is_hr_or_admin_offboarding(request.user):
+        emp = getattr(request.user, "employee_profile", None)
+        qs = qs.filter(employee__manager=emp) if emp else qs.none()
+
+    exit_req = get_object_or_404(qs, pk=pk)
 
     form = ExitRequestReviewForm(exit_request=exit_req)
 
@@ -256,10 +293,12 @@ def exit_request_review(request, pk):
     if request.method != "POST":
         return redirect("offboarding_request_detail", pk=pk)
 
-    exit_req = get_object_or_404(
-        scope_queryset(ExitRequest.objects.all(), request.user),
-        pk=pk
-    )
+    qs = scope_queryset(ExitRequest.objects.all(), request.user)
+    if not _is_hr_or_admin_offboarding(request.user):
+        emp = getattr(request.user, "employee_profile", None)
+        qs = qs.filter(employee__manager=emp) if emp else qs.none()
+
+    exit_req = get_object_or_404(qs, pk=pk)
 
     form = ExitRequestReviewForm(request.POST, exit_request=exit_req)
     if form.is_valid():
@@ -297,7 +336,7 @@ def exit_clearance_console(request):
     Multi-departmental exit clearance tracking console (IT, Finance, HR, Facilities).
     Shows departing employees with gating status, progress bars, and one-click actions.
     """
-    if not _can_manage_offboarding(request.user):
+    if not _can_manage_clearance(request.user):
         raise PermissionDenied("You do not have permission to access the exit clearance console.")
 
     current_role = request.GET.get("role", "all").strip().upper()
@@ -403,12 +442,14 @@ def exit_clearance_console(request):
     page_obj = paginator.get_page(page_number)
 
     roles_list = [
-        ("all", "All Departments"),
+        ("ALL", "All Departments"),
         (ExitClearanceItem.ROLE_IT, "IT Department"),
         (ExitClearanceItem.ROLE_FINANCE, "Finance & Accounts"),
         (ExitClearanceItem.ROLE_HR, "Human Resources"),
         (ExitClearanceItem.ROLE_FACILITIES, "Admin & Facilities"),
     ]
+
+    pending_clearance_count = max(0, total_employees - completed_clearance_count)
 
     return render(
         request,
@@ -417,6 +458,7 @@ def exit_clearance_console(request):
             "page_obj": page_obj,
             "total_employees": total_employees,
             "completed_clearance_count": completed_clearance_count,
+            "pending_clearance_count": pending_clearance_count,
             "blocked_items_count": blocked_items_count,
             "total_items_count": total_items_count,
             "cleared_items_count": cleared_items_count,
@@ -436,7 +478,7 @@ def exit_clearance_action(request, pk):
     """
     POST action to clear, block, reopen, or annotate an exit clearance item.
     """
-    if not _can_manage_offboarding(request.user):
+    if not _can_manage_clearance(request.user):
         raise PermissionDenied("You do not have permission to action exit clearance items.")
 
     if request.method != "POST":
@@ -472,7 +514,7 @@ def exit_settlement_detail(request, pk):
     Displays itemized payable earnings, deductible recoveries, statutory breakdown,
     and adjustments form.
     """
-    if not _can_manage_offboarding(request.user):
+    if not _can_manage_settlements(request.user):
         raise PermissionDenied("You do not have permission to view exit settlements.")
 
     exit_req = get_object_or_404(
@@ -514,7 +556,7 @@ def exit_settlement_action(request, pk):
     """
     POST action endpoint to recalculate settlement with custom overrides or finalize approval.
     """
-    if not _can_manage_offboarding(request.user):
+    if not _can_mutate_settlements(request.user):
         raise PermissionDenied("You do not have permission to manage exit settlements.")
 
     if request.method != "POST":
@@ -530,8 +572,11 @@ def exit_settlement_action(request, pk):
     if action == "approve":
         if hasattr(exit_req, "settlement") and exit_req.settlement is not None:
             remarks = request.POST.get("remarks", "")
-            approve_fnf_settlement(exit_req.settlement.pk, user=request.user, remarks=remarks)
-            messages.success(request, f"Full & Final Settlement for {exit_req.employee.name} approved successfully.")
+            try:
+                approve_fnf_settlement(exit_req.settlement.pk, user=request.user, remarks=remarks)
+                messages.success(request, f"Full & Final Settlement for {exit_req.employee.name} approved successfully.")
+            except ValidationError as e:
+                messages.error(request, str(e))
         else:
             messages.error(request, "Cannot approve settlement before calculation.")
     elif action == "sign_off":
@@ -553,8 +598,11 @@ def exit_settlement_action(request, pk):
         form = ExitSettlementAdjustmentForm(request.POST)
         if form.is_valid():
             overrides = form.cleaned_data
-            calculate_fnf_settlement(exit_req, user=request.user, overrides=overrides)
-            messages.success(request, "Settlement recalculated and updated successfully.")
+            try:
+                calculate_fnf_settlement(exit_req, user=request.user, overrides=overrides)
+                messages.success(request, "Settlement recalculated and updated successfully.")
+            except ValidationError as e:
+                messages.error(request, str(e))
         else:
             messages.error(request, "Failed to recalculate settlement. Check the provided values.")
 
@@ -568,7 +616,7 @@ def exit_settlement_statement(request, pk):
     Contains complete employee credentials, tenure, itemized earnings & deductions,
     net payable/recoverable balance in bold words & figures, and dual signatory blocks.
     """
-    if not _can_manage_offboarding(request.user):
+    if not _can_manage_settlements(request.user):
         raise PermissionDenied("You do not have permission to view settlement statements.")
 
     exit_req = get_object_or_404(
@@ -631,7 +679,7 @@ def exit_settlements_list(request):
     Dashboard of all employee Full & Final settlements.
     Shows net balance breakdown, payment status, and filtering by settlement state.
     """
-    if not _can_manage_offboarding(request.user):
+    if not _can_manage_settlements(request.user):
         raise PermissionDenied("You do not have permission to view the settlements dashboard.")
 
     status_filter = request.GET.get("status", "all").strip().upper()

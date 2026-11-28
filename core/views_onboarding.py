@@ -881,7 +881,7 @@ def onboarding_tracker(request):
     page_obj = paginator.get_page(page_number)
 
     roles_list = [
-        ("all", "All Departments"),
+        ("ALL", "All Departments"),
         (OnboardingTask.ROLE_IT, "IT / Tech Provisioning"),
         (OnboardingTask.ROLE_HR, "Human Resources"),
         (OnboardingTask.ROLE_FACILITIES, "Admin / Facilities"),
