@@ -51,6 +51,7 @@
       {% if perms.core.add_employee or perms.core.change_employee %}
         <a class="{% if n == 'onboarding_invitations' %}on{% endif %}" href="{% url 'onboarding_invitations' %}">Onboarding Invitations</a>
         <a class="{% if 'onboarding_review' in n %}on{% endif %}" href="{% url 'onboarding_review_queue' %}">Onboarding Verification</a>
+        <a class="{% if n == 'onboarding_tracker' %}on{% endif %}" href="{% url 'onboarding_tracker' %}">Task Tracker</a>
       {% endif %}
       <a class="{% if 'department' in n %}on{% endif %}" href="{% url 'department_list' %}">Departments</a>
       <a class="{% if 'designation' in n %}on{% endif %}" href="{% url 'designation_list' %}">Designations</a>

@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model, login
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.db import models, transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -23,7 +23,7 @@ from core.forms_onboarding import (
 )
 from core.models import Employee
 from core.models_banking import EmployeeBankAccount
-from core.models_onboarding import CandidateInvitation, OnboardingProfile
+from core.models_onboarding import CandidateInvitation, OnboardingChecklist, OnboardingProfile, OnboardingTask
 from core.models_statutory import EmployeeStatutoryProfile
 from core.services.onboarding import instantiate_onboarding_workflow
 
@@ -33,6 +33,19 @@ def _can_manage_onboarding(user):
         user.is_superuser
         or user.has_perm(roles.ADD_EMPLOYEE)
         or user.has_perm(roles.CHANGE_EMPLOYEE)
+    )
+
+
+def _can_access_onboarding_tracker(user):
+    return (
+        user.is_authenticated
+        and (
+            user.is_superuser
+            or user.is_staff
+            or _can_manage_onboarding(user)
+            or user.has_perm(roles.VIEW_EMPLOYEE)
+            or user.has_perm(roles.CHANGE_EMPLOYEE)
+        )
     )
 
 
@@ -780,6 +793,177 @@ def onboarding_review_action(request, pk):
     else:
         messages.error(request, "Invalid review action.")
         return redirect("onboarding_review_detail", pk=profile.pk)
+
+
+@login_required
+def onboarding_tracker(request):
+    """
+    Departmental Task Tracker Dashboard & Progress UI.
+    Provides cross-department visibility into candidate provisioning tasks with progress bars and one-click actions.
+    """
+    if not _can_access_onboarding_tracker(request.user):
+        raise PermissionDenied("You do not have permission to access the onboarding task tracker.")
+
+    current_role = request.GET.get("role", "all").strip().upper()
+    current_status = request.GET.get("status", "all").strip().upper()
+    search_query = request.GET.get("q", "").strip()
+
+    checklists_qs = scope_queryset(
+        OnboardingChecklist.objects.select_related(
+            "invitation",
+            "invitation__department",
+            "invitation__position",
+            "employee",
+            "organization",
+        ).prefetch_related("tasks", "tasks__completed_by"),
+        request.user
+    )
+
+    if search_query:
+        checklists_qs = checklists_qs.filter(
+            models.Q(invitation__first_name__icontains=search_query)
+            | models.Q(invitation__last_name__icontains=search_query)
+            | models.Q(invitation__email__icontains=search_query)
+            | models.Q(title__icontains=search_query)
+            | models.Q(invitation__position__title__icontains=search_query)
+            | models.Q(invitation__department__name__icontains=search_query)
+        )
+
+    if current_status in dict(OnboardingChecklist.STATUS_CHOICES):
+        checklists_qs = checklists_qs.filter(status=current_status)
+
+    # Scoped checklists for global counters
+    all_scoped_checklists = list(scope_queryset(OnboardingChecklist.objects.all(), request.user))
+    total_checklists = len(all_scoped_checklists)
+    in_progress_checklists = sum(1 for c in all_scoped_checklists if c.status == OnboardingChecklist.STATUS_IN_PROGRESS)
+    completed_checklists = sum(1 for c in all_scoped_checklists if c.status == OnboardingChecklist.STATUS_COMPLETED)
+    pending_checklists = sum(1 for c in all_scoped_checklists if c.status == OnboardingChecklist.STATUS_PENDING)
+
+    today = timezone.localdate()
+
+    checklist_items = []
+    total_tasks_count = 0
+    completed_tasks_count = 0
+    pending_tasks_count = 0
+
+    valid_roles = [OnboardingTask.ROLE_IT, OnboardingTask.ROLE_HR, OnboardingTask.ROLE_FACILITIES, OnboardingTask.ROLE_MANAGER]
+
+    for chk in checklists_qs:
+        all_tasks = list(chk.tasks.all())
+        if current_role in valid_roles:
+            filtered_tasks = [t for t in all_tasks if t.department_role == current_role]
+        else:
+            filtered_tasks = all_tasks
+
+        for t in filtered_tasks:
+            t.is_overdue = bool(t.due_date and t.due_date < today and t.status != OnboardingTask.STATUS_COMPLETED)
+            total_tasks_count += 1
+            if t.status == OnboardingTask.STATUS_COMPLETED:
+                completed_tasks_count += 1
+            else:
+                pending_tasks_count += 1
+
+        tot = len(filtered_tasks)
+        comp = sum(1 for t in filtered_tasks if t.status == OnboardingTask.STATUS_COMPLETED)
+        prog = int((comp / tot) * 100) if tot > 0 else 0
+
+        checklist_items.append({
+            "checklist": chk,
+            "tasks": filtered_tasks,
+            "total_tasks": tot,
+            "completed_tasks": comp,
+            "progress_percentage": prog,
+            "overall_progress": chk.progress_percentage,
+        })
+
+    paginator = Paginator(checklist_items, 15)
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    roles_list = [
+        ("all", "All Departments"),
+        (OnboardingTask.ROLE_IT, "IT / Tech Provisioning"),
+        (OnboardingTask.ROLE_HR, "Human Resources"),
+        (OnboardingTask.ROLE_FACILITIES, "Admin / Facilities"),
+        (OnboardingTask.ROLE_MANAGER, "Hiring Manager"),
+    ]
+
+    return render(
+        request,
+        "onboarding/tracker.html",
+        {
+            "page_obj": page_obj,
+            "total_checklists": total_checklists,
+            "in_progress_checklists": in_progress_checklists,
+            "completed_checklists": completed_checklists,
+            "pending_checklists": pending_checklists,
+            "total_tasks_count": total_tasks_count,
+            "completed_tasks_count": completed_tasks_count,
+            "pending_tasks_count": pending_tasks_count,
+            "current_role": current_role,
+            "current_status": current_status,
+            "search_query": search_query,
+            "roles_list": roles_list,
+            "today": today,
+            "n": "onboarding_tracker",
+            "title": "Departmental Onboarding Tracker",
+        }
+    )
+
+
+@login_required
+def onboarding_task_action(request, pk):
+    """
+    Handle one-click task status toggling and blocker notes updates.
+    """
+    if not _can_access_onboarding_tracker(request.user):
+        raise PermissionDenied("You do not have permission to manage onboarding tasks.")
+
+    if request.method != "POST":
+        return redirect("onboarding_tracker")
+
+    task = get_object_or_404(
+        OnboardingTask.objects.select_related("checklist", "checklist__organization"),
+        pk=pk
+    )
+
+    # Tenancy check
+    scoped_checklists = scope_queryset(OnboardingChecklist.objects.all(), request.user)
+    if not scoped_checklists.filter(pk=task.checklist_id).exists():
+        raise PermissionDenied("You do not have access to this onboarding task.")
+
+    action = request.POST.get("action", "").strip()
+    notes = request.POST.get("notes", "").strip()
+
+    if action == "complete":
+        task.mark_completed(user=request.user, notes=notes if notes else task.notes)
+        messages.success(request, f"Task '{task.title}' marked as completed.")
+    elif action == "in_progress":
+        task.status = OnboardingTask.STATUS_IN_PROGRESS
+        if notes:
+            task.notes = notes
+        task.save(update_fields=["status", "notes", "updated_at"])
+        task.checklist.update_overall_status()
+        messages.info(request, f"Task '{task.title}' moved to In Progress.")
+    elif action == "reopen":
+        task.status = OnboardingTask.STATUS_PENDING
+        task.completed_at = None
+        task.completed_by = None
+        if notes:
+            task.notes = notes
+        task.save(update_fields=["status", "completed_at", "completed_by", "notes", "updated_at"])
+        task.checklist.update_overall_status()
+        messages.warning(request, f"Task '{task.title}' reopened as Pending.")
+    elif action == "update_notes":
+        task.notes = notes
+        task.save(update_fields=["notes", "updated_at"])
+        messages.success(request, f"Fulfillment notes updated for '{task.title}'.")
+    else:
+        messages.error(request, "Invalid task action.")
+
+    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or reverse("onboarding_tracker")
+    return redirect(next_url)
+
 
 
 
