@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+
+{% block title %}Full &amp; Final Settlement: {{ exit_req.employee.name }} | HRMS Portal{% endblock %}
+
+{% block content %}
+<div class="head">
+    <div>
+        <h1>Full &amp; Final (F&amp;F) Settlement: {{ exit_req.employee.name }}</h1>
+        <p class="muted">Automated financial computation of final compensation, leave encashment, statutory gratuity, expense reimbursements, notice recoveries, and net balance.</p>
+    </div>
+    <div class="actions">
+        <a class="btn ghost" href="{% url 'offboarding_request_detail' exit_req.pk %}">&larr; Back to Exit Request</a>
+        <a class="btn ghost" href="{% url 'offboarding_settlements_list' %}">All Settlements</a>
+    </div>
+</div>
+
+<!-- Employee & Separation Baseline Strip -->
+<div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem; background: #f8fafc;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; font-size: 0.9rem;">
+        <div>
+            <span class="muted" style="font-size: 0.75rem; text-transform: uppercase;">Employee Name</span>
+            <div style="font-weight: 700; color: #1e293b;">{{ exit_req.employee.name }}</div>
+            <small class="muted">{{ exit_req.employee.position.title|default:"Team Member" }}</small>
+        </div>
+        <div>
+            <span class="muted" style="font-size: 0.75rem; text-transform: uppercase;">Last Drawn Basic</span>
+            <div style="font-weight: 700; color: #1e293b;">₹{{ settlement.last_drawn_basic }} / mo</div>
+            <small class="muted">Daily Rate: ₹{{ settlement.daily_basic_rate }}</small>
+        </div>
+        <div>
+            <span class="muted" style="font-size: 0.75rem; text-transform: uppercase;">Service Period</span>
+            <div style="font-weight: 600; color: #1e293b;">
+                {{ exit_req.employee.joined_on|date:"d M Y" }} &rarr; {{ settlement.exit_request.official_lwd|default:settlement.exit_request.requested_lwd|date:"d M Y" }}
+            </div>
+            <small class="muted">Tenure: {{ settlement.tenure_years }} years</small>
+        </div>
+        <div>
+            <span class="muted" style="font-size: 0.75rem; text-transform: uppercase;">Clearance Gating</span>
+            <div style="margin-top: 2px;">
+                {% if exit_req.is_clearance_complete %}
+                    <span class="badge" style="background: #dcfce7; color: #15803d; font-size: 0.8rem;">&#10003; All Clear</span>
+                {% else %}
+                    <span class="badge" style="background: #fef3c7; color: #92400e; font-size: 0.8rem;">
+                        {{ exit_req.cleared_clearance_items }} / {{ exit_req.total_clearance_items }} Cleared
+                    </span>
+                {% endif %}
+            </div>
+            <small class="muted"><a href="{% url 'offboarding_clearance_console' %}?q={{ exit_req.employee.name|urlencode }}">Inspect Checklist</a></small>
+        </div>
+        <div>
+            <span class="muted" style="font-size: 0.75rem; text-transform: uppercase;">Settlement Status</span>
+            <div style="margin-top: 2px;">
+                {% if settlement.status == "APPROVED" %}
+                    <span class="badge" style="background: #dcfce7; color: #15803d; font-size: 0.85rem; padding: 4px 10px;">Approved</span>
+                {% elif settlement.status == "SETTLED" %}
+                    <span class="badge" style="background: #dbeafe; color: #1e40af; font-size: 0.85rem; padding: 4px 10px;">Disbursed &amp; Settled</span>
+                {% else %}
+                    <span class="badge" style="background: #fef3c7; color: #92400e; font-size: 0.85rem; padding: 4px 10px;">Calculated (Draft)</span>
+                {% endif %}
+            </div>
+            {% if settlement.finalized_at %}
+                <small class="muted" style="display: block;">By {{ settlement.finalized_by.username }}</small>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Net Settlement Highlight Banner -->
+<div class="card" style="margin-bottom: 1.5rem; padding: 1.5rem; border-left: 6px solid {% if settlement.is_recoverable %}#dc2626{% else %}#16a34a{% endif %}; background: white;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <span style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase; color: {% if settlement.is_recoverable %}#dc2626{% else %}#16a34a{% endif %};">
+                {{ settlement.payment_type_label }}
+            </span>
+            <div style="font-size: 2.25rem; font-weight: 800; color: #0f172a; margin-top: 0.25rem;">
+                ₹{{ settlement.abs_net_amount }}
+            </div>
+            <p class="muted" style="margin: 0.25rem 0 0 0; font-size: 0.85rem;">
+                Total Payable Earnings: <strong style="color: #15803d;">₹{{ settlement.total_earnings }}</strong>
+                &bull; Total Deductible Recoveries: <strong style="color: #b91c1c;">₹{{ settlement.total_deductions }}</strong>
+            </p>
+        </div>
+
+        <div style="display: flex; gap: 0.75rem; align-items: center;">
+            {% if settlement.status != "APPROVED" and settlement.status != "SETTLED" %}
+                <form method="post" action="{% url 'offboarding_settlement_action' exit_req.pk %}" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="approve">
+                    <button type="submit" class="btn" style="background: #16a34a; border-color: #16a34a; padding: 8px 18px; font-weight: 600;" onclick="return confirm('Confirm approval of Full & Final Settlement for {{ exit_req.employee.name }}?');">
+                        &#10003; Approve Settlement
+                    </button>
+                </form>
+            {% else %}
+                <span class="badge" style="background: #dcfce7; color: #15803d; font-size: 1rem; padding: 8px 16px;">
+                    &#10003; Finalized &amp; Approved
+                </span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Two Columns: Itemized Earnings & Deductible Recoveries -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+    <!-- Column 1: Payable Earnings Breakdown -->
+    <section class="card" style="padding: 1.25rem;">
+        <h3 style="margin-top: 0; color: #166534; display: flex; justify-content: space-between; align-items: center;">
+            <span>1. Payable Earnings</span>
+            <span style="font-size: 1.1rem; color: #15803d;">+ ₹{{ settlement.total_earnings }}</span>
+        </h3>
+
+        <div class="scroll">
+            <table style="width: 100%; font-size: 0.9rem;">
+                <thead>
+                    <tr>
+                        <th>Earnings Component</th>
+                        <th>Computation Basis</th>
+                        <th style="text-align: right;">Amount (₹)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            <strong>Prorated Final Month Salary</strong>
+                            <div class="muted" style="font-size: 0.75rem;">Worked {{ settlement.worked_days_in_final_month }} of {{ settlement.days_in_final_month }} calendar days</div>
+                        </td>
+                        <td class="muted">{{ settlement.worked_days_in_final_month }}/{{ settlement.days_in_final_month }} &times; ₹{{ settlement.last_drawn_basic }}</td>
+                        <td style="text-align: right; font-weight: 600; color: #15803d;">₹{{ settlement.prorated_salary }}</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <strong>Unused Leave Encashment</strong>
+                            <div class="muted" style="font-size: 0.75rem;">{{ settlement.leave_encashment_days }} earned paid leave days</div>
+                        </td>
+                        <td class="muted">{{ settlement.leave_encashment_days }} &times; ₹{{ settlement.daily_basic_rate }}/day</td>
+                        <td style="text-align: right; font-weight: 600; color: #15803d;">₹{{ settlement.leave_encashment_amount }}</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <strong>Approved Expense Claims</strong>
+                            <div class="muted" style="font-size: 0.75rem;">Unreimbursed approved claims</div>
+                        </td>
+                        <td class="muted">Verified receipts ledger</td>
+                        <td style="text-align: right; font-weight: 600; color: #15803d;">₹{{ settlement.reimbursable_expenses_amount }}</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <strong>Statutory Gratuity</strong>
+                            <div class="muted" style="font-size: 0.75rem;">
+                                {% if settlement.is_gratuity_eligible %}
+                                    Eligible ({{ settlement.tenure_years }} yrs service &ge; 5 yrs)
+                                {% else %}
+                                    Ineligible ({{ settlement.tenure_years }} yrs &lt; 5 yrs tenure)
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="muted">
+                            {% if settlement.is_gratuity_eligible %}
+                                (15 &times; Basic &times; Yrs) / 26
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td style="text-align: right; font-weight: 600; color: #15803d;">₹{{ settlement.gratuity_amount }}</td>
+                    </tr>
+                    {% if settlement.additional_earnings > 0 %}
+                    <tr>
+                        <td>
+                            <strong>Additional Earnings / Bonus</strong>
+                            {% if settlement.additional_earnings_notes %}
+                                <div class="muted" style="font-size: 0.75rem;">{{ settlement.additional_earnings_notes }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="muted">Manual Addition</td>
+                        <td style="text-align: right; font-weight: 600; color: #15803d;">₹{{ settlement.additional_earnings }}</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+                <tfoot>
+                    <tr style="border-top: 2px solid #e2e8f0; font-weight: 700;">
+                        <td colspan="2">Total Gross Earnings</td>
+                        <td style="text-align: right; color: #15803d; font-size: 1rem;">₹{{ settlement.total_earnings }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </section>
+
+    <!-- Column 2: Deductible Recoveries Breakdown -->
+    <section class="card" style="padding: 1.25rem;">
+        <h3 style="margin-top: 0; color: #991b1b; display: flex; justify-content: space-between; align-items: center;">
+            <span>2. Deductible Recoveries</span>
+            <span style="font-size: 1.1rem; color: #b91c1c;">- ₹{{ settlement.total_deductions }}</span>
+        </h3>
+
+        <div class="scroll">
+            <table style="width: 100%; font-size: 0.9rem;">
+                <thead>
+                    <tr>
+                        <th>Recovery / Deduction</th>
+                        <th>Computation Basis</th>
+                        <th style="text-align: right;">Amount (₹)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            <strong>Notice Shortfall Recovery</strong>
+                            <div class="muted" style="font-size: 0.75rem;">
+                                {% if settlement.exit_request.shortfall_waived %}
+                                    Shortfall Waived by Manager
+                                {% elif settlement.notice_shortfall_days > 0 %}
+                                    {{ settlement.notice_shortfall_days }} shortfall days
+                                {% else %}
+                                    Full notice served
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="muted">
+                            {% if not settlement.exit_request.shortfall_waived and settlement.notice_shortfall_days > 0 %}
+                                {{ settlement.notice_shortfall_days }} &times; ₹{{ settlement.daily_basic_rate }}/day
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td style="text-align: right; font-weight: 600; color: #b91c1c;">₹{{ settlement.notice_shortfall_recovery }}</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <strong>Final Statutory Deductions</strong>
+                            <div class="muted" style="font-size: 0.75rem;">
+                                EPF: ₹{{ settlement.epf_deduction }} &bull; ESI: ₹{{ settlement.esi_deduction }} &bull; PT: ₹{{ settlement.professional_tax }} &bull; TDS: ₹{{ settlement.tds_deduction }}
+                            </div>
+                        </td>
+                        <td class="muted">Statutory Engine</td>
+                        <td style="text-align: right; font-weight: 600; color: #b91c1c;">₹{{ settlement.total_statutory_deductions }}</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <strong>Salary Advance Recovery</strong>
+                            <div class="muted" style="font-size: 0.75rem;">Outstanding loans / advances</div>
+                        </td>
+                        <td class="muted">Company Ledger</td>
+                        <td style="text-align: right; font-weight: 600; color: #b91c1c;">₹{{ settlement.salary_advance_recovery }}</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <strong>Asset &amp; Equipment Damage Recovery</strong>
+                            <div class="muted" style="font-size: 0.75rem;">Hardware damage or missing items</div>
+                        </td>
+                        <td class="muted">Clearance Audit</td>
+                        <td style="text-align: right; font-weight: 600; color: #b91c1c;">₹{{ settlement.asset_damage_recovery }}</td>
+                    </tr>
+                    {% if settlement.additional_deductions > 0 %}
+                    <tr>
+                        <td>
+                            <strong>Additional Deductions</strong>
+                            {% if settlement.additional_deductions_notes %}
+                                <div class="muted" style="font-size: 0.75rem;">{{ settlement.additional_deductions_notes }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="muted">Manual Deduction</td>
+                        <td style="text-align: right; font-weight: 600; color: #b91c1c;">₹{{ settlement.additional_deductions }}</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+                <tfoot>
+                    <tr style="border-top: 2px solid #e2e8f0; font-weight: 700;">
+                        <td colspan="2">Total Deductions</td>
+                        <td style="text-align: right; color: #b91c1c; font-size: 1rem;">₹{{ settlement.total_deductions }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </section>
+</div>
+
+<!-- Settlement Adjustment & Recalculation Form -->
+<section class="card" style="padding: 1.5rem; margin-bottom: 2rem;">
+    <details {% if settlement.status != 'APPROVED' and settlement.status != 'SETTLED' %}open{% endif %}>
+        <summary style="font-size: 1.1rem; font-weight: 700; color: #1e293b; cursor: pointer; margin-bottom: 1rem;">
+            &#9881; Adjust &amp; Recalculate Settlement Parameters
+        </summary>
+
+        <form method="post" action="{% url 'offboarding_settlement_action' exit_req.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="recalculate">
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.25rem;">
+                <!-- Earnings Adjustments -->
+                <div style="background: #f8fafc; padding: 1.25rem; border-radius: 8px;">
+                    <h4 style="margin-top: 0; color: #15803d;">Earnings Parameters</h4>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 4px;">{{ form.worked_days_in_final_month.label }}</label>
+                        {{ form.worked_days_in_final_month }}
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 4px;">{{ form.leave_encashment_days.label }}</label>
+                        {{ form.leave_encashment_days }}
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 4px;">{{ form.reimbursable_expenses_amount.label }}</label>
+                        {{ form.reimbursable_expenses_amount }}
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; font-weight: 600;">
+                            {{ form.is_gratuity_eligible }} {{ form.is_gratuity_eligible.label }}
+                        </label>
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 4px;">{{ form.gratuity_amount.label }}</label>
+                        {{ form.gratuity_amount }}
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 4px;">{{ form.additional_earnings.label }}</label>
+                        {{ form.additional_earnings }}
+                    </div>
+                    <div>
+                        <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 4px;">{{ form.additional_earnings_notes.label }}</label>
+                        {{ form.additional_earnings_notes }}
+                    </div>
+                </div>
+
+                <!-- Deductions Adjustments -->
+                <div style="background: #f8fafc; padding: 1.25rem; border-radius: 8px;">
+                    <h4 style="margin-top: 0; color: #b91c1c;">Deductions &amp; Recoveries</h4>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 4px;">{{ form.notice_shortfall_days.label }}</label>
+                        {{ form.notice_shortfall_days }}
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 4px;">{{ form.salary_advance_recovery.label }}</label>
+                        {{ form.salary_advance_recovery }}
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 4px;">{{ form.asset_damage_recovery.label }}</label>
+                        {{ form.asset_damage_recovery }}
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 4px;">{{ form.additional_deductions.label }}</label>
+                        {{ form.additional_deductions }}
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 4px;">{{ form.additional_deductions_notes.label }}</label>
+                        {{ form.additional_deductions_notes }}
+                    </div>
+                    <div>
+                        <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 4px;">{{ form.remarks.label }}</label>
+                        {{ form.remarks }}
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 1rem; align-items: center; justify-content: flex-end;">
+                <button type="submit" class="btn">Recalculate &amp; Save</button>
+            </div>
+        </form>
+    </details>
+</section>
+{% endblock %}

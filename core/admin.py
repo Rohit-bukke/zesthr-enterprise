@@ -480,7 +480,7 @@ class ExpenseClaimAdmin(admin.ModelAdmin):
     search_fields = ("claim_number", "employee__name", "title")
 
 
-from .models_onboarding import CandidateInvitation
+from .models_onboarding import CandidateInvitation, OnboardingChecklist, OnboardingTask, OnboardingProfile
 
 
 @admin.register(CandidateInvitation)
@@ -489,5 +489,64 @@ class CandidateInvitationAdmin(TenantAdmin):
     list_filter = ("status", "department", "proposed_joining_date")
     search_fields = ("first_name", "last_name", "email", "token")
     readonly_fields = ("token", "created_at", "accepted_at")
+
+
+class OnboardingTaskInline(admin.TabularInline):
+    model = OnboardingTask
+    extra = 1
+    fields = ("department_role", "title", "due_date", "status", "completed_by", "completed_at")
+    readonly_fields = ("completed_at",)
+
+
+@admin.register(OnboardingChecklist)
+class OnboardingChecklistAdmin(TenantAdmin):
+    list_display = ("title", "organization", "invitation", "employee", "status", "target_date", "created_at")
+    list_filter = ("status", "organization", "target_date")
+    search_fields = ("title", "invitation__first_name", "invitation__last_name", "employee__name")
+    inlines = [OnboardingTaskInline]
+
+
+@admin.register(OnboardingTask)
+class OnboardingTaskAdmin(admin.ModelAdmin):
+    list_display = ("title", "checklist", "department_role", "due_date", "status", "completed_by", "completed_at")
+    list_filter = ("department_role", "status", "due_date")
+    search_fields = ("title", "checklist__title", "notes")
+
+
+from .models_offboarding import ExitRequest, ExitClearanceItem, ExitSettlement
+
+
+class ExitClearanceItemInline(admin.TabularInline):
+    model = ExitClearanceItem
+    extra = 1
+    fields = ("department_role", "item_name", "status", "cleared_by", "cleared_at", "notes")
+    readonly_fields = ("cleared_at",)
+
+
+@admin.register(ExitRequest)
+class ExitRequestAdmin(TenantAdmin):
+    list_display = ("employee", "organization", "resignation_date", "requested_lwd", "official_lwd", "notice_period_days", "notice_shortfall_days", "status")
+    list_filter = ("status", "reason_category", "resignation_date", "organization")
+    search_fields = ("employee__name", "employee__email", "reason_detail", "review_notes")
+    readonly_fields = ("created_at", "updated_at", "notice_shortfall_days")
+    inlines = [ExitClearanceItemInline]
+
+
+@admin.register(ExitClearanceItem)
+class ExitClearanceItemAdmin(admin.ModelAdmin):
+    list_display = ("item_name", "exit_request", "department_role", "status", "cleared_by", "cleared_at")
+    list_filter = ("department_role", "status")
+    search_fields = ("item_name", "exit_request__employee__name", "notes")
+
+
+@admin.register(ExitSettlement)
+class ExitSettlementAdmin(TenantAdmin):
+    list_display = ("employee", "exit_request", "total_earnings", "total_deductions", "net_amount", "is_recoverable", "status", "calculated_at")
+    list_filter = ("status", "is_recoverable", "organization")
+    search_fields = ("employee__name", "employee__email", "remarks")
+    readonly_fields = ("created_at", "updated_at", "calculated_at", "net_amount", "is_recoverable")
+
+
+
 
 

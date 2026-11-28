@@ -6,7 +6,10 @@
     <h1>Candidate Pre-Onboarding Invitations</h1>
     <p>Dispatch secure, time-expiring invitation links to prospective new hires before their start date.</p>
   </div>
-  <a class="btn" href="{% url 'onboarding_invitation_create' %}">+ Invite New Candidate</a>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <a class="btn ghost" href="{% url 'onboarding_tracker' %}">Department Task Tracker</a>
+    <a class="btn" href="{% url 'onboarding_invitation_create' %}">+ Invite New Candidate</a>
+  </div>
 </div>
 
 <!-- Status Filters & Search Bar -->

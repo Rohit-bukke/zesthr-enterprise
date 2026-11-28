@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Resignation Status | HROS{% endblock %}
+
+{% block content %}
+<div class="head">
+    <div>
+        <h1>My Resignation &amp; Exit Status</h1>
+        <p class="muted">Track your resignation progress, approved last working day, and notice period timeline.</p>
+    </div>
+    <div class="actions">
+        <a class="btn ghost" href="{% url 'my_profile' %}">&larr; Back to My Profile</a>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; align-items: start;">
+    <!-- Main Status Card -->
+    <section class="card" style="padding: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+            <h3 style="margin: 0; color: #1e293b;">Separation Request Overview</h3>
+            <div>
+                {% if exit_req.status == "SUBMITTED" %}
+                    <span class="badge" style="background: #fef3c7; color: #92400e; font-size: 0.9rem; padding: 6px 12px;">Submitted (Under Review)</span>
+                {% elif exit_req.status == "APPROVED" %}
+                    <span class="badge" style="background: #dbeafe; color: #1e40af; font-size: 0.9rem; padding: 6px 12px;">Approved (Serving Notice)</span>
+                {% elif exit_req.status == "CLEARANCE_IN_PROGRESS" %}
+                    <span class="badge" style="background: #f3e8ff; color: #6b21a8; font-size: 0.9rem; padding: 6px 12px;">Clearance In Progress</span>
+                {% elif exit_req.status == "SETTLED" %}
+                    <span class="badge" style="background: #dcfce7; color: #15803d; font-size: 0.9rem; padding: 6px 12px;">Settled &amp; Relieved</span>
+                {% elif exit_req.status == "REJECTED" %}
+                    <span class="badge" style="background: #fee2e2; color: #b91c1c; font-size: 0.9rem; padding: 6px 12px;">Declined / Withdrawn</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Key Dates Grid -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;">
+                <span class="muted" style="font-size: 0.8rem; text-transform: uppercase;">Submitted On</span>
+                <div style="font-size: 1.1rem; font-weight: 600; color: #1e293b; margin-top: 4px;">{{ exit_req.resignation_date|date:"d M Y" }}</div>
+            </div>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;">
+                <span class="muted" style="font-size: 0.8rem; text-transform: uppercase;">Requested LWD</span>
+                <div style="font-size: 1.1rem; font-weight: 600; color: #1e293b; margin-top: 4px;">{{ exit_req.requested_lwd|date:"d M Y" }}</div>
+            </div>
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 1rem;">
+                <span class="muted" style="font-size: 0.8rem; text-transform: uppercase; color: #166534;">Official Agreed LWD</span>
+                <div style="font-size: 1.1rem; font-weight: 700; color: #15803d; margin-top: 4px;">
+                    {{ exit_req.official_lwd|date:"d M Y"|default:"Pending Review" }}
+                </div>
+            </div>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;">
+                <span class="muted" style="font-size: 0.8rem; text-transform: uppercase;">Notice Shortfall</span>
+                <div style="font-size: 1.1rem; font-weight: 600; color: {% if exit_req.notice_shortfall_days > 0 %}#b91c1c{% else %}#15803d{% endif %}; margin-top: 4px;">
+                    {{ exit_req.notice_shortfall_days }} day{{ exit_req.notice_shortfall_days|pluralize }}
+                </div>
+            </div>
+        </div>
+
+        {% if days_remaining is not None and exit_req.status != "REJECTED" and exit_req.status != "SETTLED" %}
+        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 12px;">
+            <div style="font-size: 2rem;">🗓️</div>
+            <div>
+                <strong>{{ days_remaining }} day{{ days_remaining|pluralize }} remaining</strong> until your final working day.
+                <div class="muted" style="font-size: 0.85rem;">Ensure your project handovers and asset transfers are coordinated before {{ exit_req.official_lwd|date:"d M Y"|default:exit_req.requested_lwd|date:"d M Y" }}.</div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Reason and statement -->
+        <div style="border-top: 1px solid #e2e8f0; padding-top: 1.25rem;">
+            <h4 style="margin: 0 0 0.5rem 0; color: #334155;">Reason Category</h4>
+            <div style="font-weight: 500; color: #1e293b; margin-bottom: 1rem;">{{ exit_req.get_reason_category_display }}</div>
+
+            {% if exit_req.reason_detail %}
+                <h4 style="margin: 0 0 0.5rem 0; color: #334155;">Statement &amp; Handover Notes</h4>
+                <div style="background: #f8fafc; padding: 1rem; border-radius: 6px; font-size: 0.9rem; color: #334155; line-height: 1.6; white-space: pre-wrap;">{{ exit_req.reason_detail }}</div>
+            {% endif %}
+        </div>
+
+        {% if exit_req.reviewed_by %}
+        <div style="margin-top: 1.5rem; border-top: 1px solid #e2e8f0; padding-top: 1.25rem;">
+            <h4 style="margin: 0 0 0.5rem 0; color: #334155;">Manager Decision Remarks</h4>
+            <div style="background: #f8fafc; padding: 1rem; border-radius: 6px; font-size: 0.9rem; color: #334155;">
+                <div>{{ exit_req.review_notes|default:"No notes entered." }}</div>
+                <small class="muted" style="display: block; margin-top: 0.5rem;">
+                    Decided by <strong>{{ exit_req.reviewed_by.get_full_name|default:exit_req.reviewed_by.username }}</strong> on {{ exit_req.reviewed_at|date:"d M Y, H:i" }}
+                </small>
+            </div>
+        </div>
+        {% endif %}
+    </section>
+
+    <!-- Sidebar Guidelines -->
+    <div>
+        <div class="card" style="padding: 1.25rem; background: #f8fafc;">
+            <h4 style="margin-top: 0; color: #334155;">Next Steps</h4>
+            <ol style="padding-left: 1.25rem; margin-bottom: 0; font-size: 0.85rem; color: #475569; line-height: 1.6;">
+                <li>Reporting manager reviews and confirms your official Last Working Day.</li>
+                <li>IT team coordinates hardware asset inspection and return schedule.</li>
+                <li>Finance team reviews any pending expense claims or travel reimbursements.</li>
+                <li>Final Full &amp; Final (F&amp;F) settlement statement prepared by payroll.</li>
+            </ol>
+        </div>
+    </div>
+</div>
+{% endblock %}
