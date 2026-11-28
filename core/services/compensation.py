@@ -61,7 +61,7 @@ def approve_salary_revision(revision_id: int, reviewer=None, review_notes: str =
         revision.save()
 
         # If effective date has arrived or passed, apply immediately
-        if revision.effective_date <= timezone.now().date():
+        if revision.effective_date <= timezone.localdate():
             apply_salary_revision(revision)
 
         return revision
@@ -113,7 +113,7 @@ def apply_pending_effective_revisions(as_of_date: date = None) -> int:
     Batch job to apply all APPROVED revisions whose effective_date is <= as_of_date.
     """
     if as_of_date is None:
-        as_of_date = timezone.now().date()
+        as_of_date = timezone.localdate()
 
     pending = SalaryRevision.objects.filter(
         status=SalaryRevision.STATUS_APPROVED,
