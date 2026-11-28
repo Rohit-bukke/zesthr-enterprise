@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Review Resignation: {{ exit_req.employee.name }} | HROS{% endblock %}
+
+{% block content %}
+<div class="head">
+    <div>
+        <h1>Review Resignation: {{ exit_req.employee.name }}</h1>
+        <p class="muted">Inspect employee resignation reasoning, adjust or confirm official last working day, and set notice period parameters.</p>
+    </div>
+    <div class="actions">
+        <a class="btn ghost" href="{% url 'offboarding_requests_list' %}">&larr; Back to Exit Requests</a>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; align-items: start;">
+    <!-- Main Left Column -->
+    <div>
+        <!-- Resignation Breakdown Card -->
+        <section class="card" style="padding: 1.5rem; margin-bottom: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+                <h3 style="margin: 0; color: #1e293b;">Resignation Notice Breakdown</h3>
+                <div>
+                    {% if exit_req.status == "SUBMITTED" %}
+                        <span class="badge" style="background: #fef3c7; color: #92400e; font-size: 0.9rem; padding: 6px 12px;">Submitted (Under Review)</span>
+                    {% elif exit_req.status == "APPROVED" %}
+                        <span class="badge" style="background: #dbeafe; color: #1e40af; font-size: 0.9rem; padding: 6px 12px;">Approved (Serving Notice)</span>
+                    {% elif exit_req.status == "CLEARANCE_IN_PROGRESS" %}
+                        <span class="badge" style="background: #f3e8ff; color: #6b21a8; font-size: 0.9rem; padding: 6px 12px;">Clearance In Progress</span>
+                    {% elif exit_req.status == "SETTLED" %}
+                        <span class="badge" style="background: #dcfce7; color: #15803d; font-size: 0.9rem; padding: 6px 12px;">Settled &amp; Relieved</span>
+                    {% elif exit_req.status == "REJECTED" %}
+                        <span class="badge" style="background: #fee2e2; color: #b91c1c; font-size: 0.9rem; padding: 6px 12px;">Declined / Withdrawn</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Date Analysis Metric Cards -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;">
+                    <span class="muted" style="font-size: 0.8rem; text-transform: uppercase;">Submission Date</span>
+                    <div style="font-size: 1.1rem; font-weight: 600; color: #1e293b; margin-top: 4px;">{{ exit_req.resignation_date|date:"d M Y" }}</div>
+                </div>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;">
+                    <span class="muted" style="font-size: 0.8rem; text-transform: uppercase;">Standard 30d LWD</span>
+                    <div style="font-size: 1.1rem; font-weight: 600; color: #1e293b; margin-top: 4px;">{{ exit_req.standard_lwd|date:"d M Y" }}</div>
+                </div>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;">
+                    <span class="muted" style="font-size: 0.8rem; text-transform: uppercase;">Requested LWD</span>
+                    <div style="font-size: 1.1rem; font-weight: 600; color: #1e293b; margin-top: 4px;">{{ exit_req.requested_lwd|date:"d M Y" }}</div>
+                </div>
+                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 1rem;">
+                    <span class="muted" style="font-size: 0.8rem; text-transform: uppercase; color: #166534;">Official LWD</span>
+                    <div style="font-size: 1.1rem; font-weight: 700; color: #15803d; margin-top: 4px;">
+                        {{ exit_req.official_lwd|date:"d M Y"|default:"Not Yet Decided" }}
+                    </div>
+                </div>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;">
+                    <span class="muted" style="font-size: 0.8rem; text-transform: uppercase;">Shortfall Days</span>
+                    <div style="font-size: 1.1rem; font-weight: 600; color: {% if exit_req.notice_shortfall_days > 0 %}#b91c1c{% else %}#15803d{% endif %}; margin-top: 4px;">
+                        {{ exit_req.notice_shortfall_days }} day{{ exit_req.notice_shortfall_days|pluralize }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stated Reason & Statement -->
+            <div>
+                <h4 style="margin: 0 0 0.5rem 0; color: #334155;">Reason Category</h4>
+                <div style="font-weight: 500; color: #1e293b; margin-bottom: 1rem;">{{ exit_req.get_reason_category_display }}</div>
+
+                {% if exit_req.reason_detail %}
+                    <h4 style="margin: 0 0 0.5rem 0; color: #334155;">Employee Statement &amp; Handover Notes</h4>
+                    <div style="background: #f8fafc; padding: 1rem; border-radius: 6px; font-size: 0.9rem; color: #334155; line-height: 1.6; white-space: pre-wrap;">{{ exit_req.reason_detail }}</div>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- Manager Review Action Card -->
+        {% if exit_req.status == "SUBMITTED" %}
+        <section class="card" style="padding: 1.5rem;">
+            <h3 style="margin-top: 0; margin-bottom: 1rem; color: #1e293b;">Managerial Decision Form</h3>
+
+            <form method="post" action="{% url 'offboarding_request_review' exit_req.pk %}">
+                {% csrf_token %}
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Select Action</label>
+                    <div style="display: flex; gap: 1.5rem;">
+                        {% for radio in form.action %}
+                            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                {{ radio.tag }} {{ radio.choice_label }}
+                            </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 0.35rem;">Approved Official Last Working Day (LWD)</label>
+                    {{ form.official_lwd }}
+                    <small class="muted" style="display: block; margin-top: 0.25rem;">
+                        Defaults to employee requested LWD ({{ exit_req.requested_lwd|date:"d M Y" }}). You may adjust if project handover requires a different date.
+                    </small>
+                </div>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500;">
+                        {{ form.waive_shortfall }} {{ form.waive_shortfall.label }}
+                    </label>
+                    <small class="muted" style="display: block; margin-left: 24px;">
+                        If checked, zero notice shortfall days will be deducted from the employee's Full &amp; Final settlement.
+                    </small>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 0.35rem;">Decision Remarks / Transition Requirements</label>
+                    {{ form.review_notes }}
+                </div>
+
+                <div style="display: flex; gap: 1rem; border-top: 1px solid #e2e8f0; padding-top: 1.25rem;">
+                    <button type="submit" class="btn">Confirm Decision</button>
+                    <a href="{% url 'offboarding_requests_list' %}" class="btn ghost">Cancel</a>
+                </div>
+            </form>
+        </section>
+        {% else %}
+        <section class="card" style="padding: 1.5rem;">
+            <h3 style="margin-top: 0; margin-bottom: 1rem; color: #1e293b;">Decision Audit Record</h3>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; font-size: 0.9rem;">
+                <div><strong>Decision:</strong> {{ exit_req.get_status_display }}</div>
+                <div><strong>Decided By:</strong> {{ exit_req.reviewed_by.get_full_name|default:exit_req.reviewed_by.username|default:"System" }}</div>
+                <div><strong>Decided At:</strong> {{ exit_req.reviewed_at|date:"d M Y, H:i"|default:"-" }}</div>
+                {% if exit_req.review_notes %}
+                    <div style="margin-top: 0.75rem;"><strong>Remarks:</strong> {{ exit_req.review_notes }}</div>
+                {% endif %}
+            </div>
+        </section>
+        {% endif %}
+
+        {% if exit_req.status == "APPROVED" or exit_req.status == "CLEARANCE_IN_PROGRESS" or exit_req.status == "SETTLED" %}
+        <section class="card" style="padding: 1.25rem; margin-top: 1.5rem; border-left: 4px solid #4f46e5;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h4 style="margin: 0 0 4px 0; color: #1e1b4b;">Exit Clearance Checklist</h4>
+                    <p class="muted" style="margin: 0; font-size: 0.85rem;">{{ exit_req.cleared_clearance_items }} of {{ exit_req.total_clearance_items }} checkpoints cleared ({{ exit_req.clearance_percentage }}%)</p>
+                </div>
+                <a href="{% url 'offboarding_clearance_console' %}?q={{ exit_req.employee.name|urlencode }}" class="btn sm">Open in Clearance Console &rarr;</a>
+            </div>
+        </section>
+        {% endif %}
+    </div>
+
+    <!-- Right Sidebar: Employee Profile Info -->
+    <div>
+        <div class="card" style="padding: 1.25rem; margin-bottom: 1.25rem;">
+            <h4 style="margin-top: 0; color: #334155;">Employee Profile</h4>
+            <div style="font-size: 0.85rem; line-height: 1.7;">
+                <div><strong>Name:</strong> {{ exit_req.employee.name }}</div>
+                <div><strong>Email:</strong> {{ exit_req.employee.email }}</div>
+                <div><strong>Department:</strong> {{ exit_req.employee.department.name|default:"General" }}</div>
+                <div><strong>Position:</strong> {{ exit_req.employee.position.title|default:"Team Member" }}</div>
+                <div><strong>Joining Date:</strong> {{ exit_req.employee.joined_on|date:"d M Y" }}</div>
+                <div><strong>Employment Status:</strong> {{ exit_req.employee.get_employment_status_display }}</div>
+                <div><strong>Basic Salary:</strong> ₹{{ exit_req.employee.basic_salary }} / mo</div>
+                <div><strong>Reporting Manager:</strong> {{ exit_req.employee.manager.name|default:"None Assigned" }}</div>
+            </div>
+            <div style="margin-top: 1rem; border-top: 1px solid #e2e8f0; padding-top: 0.75rem;">
+                <a href="{% url 'employee_detail' exit_req.employee.pk %}" class="btn ghost" style="font-size: 0.8rem; width: 100%; text-align: center; display: block;">
+                    View Full Profile &rarr;
+                </a>
+            </div>
+        </div>
+
+        <div class="card" style="padding: 1.25rem; background: #f8fafc;">
+            <h4 style="margin-top: 0; color: #334155;">Offboarding Stages</h4>
+            <ul style="padding-left: 1.25rem; margin-bottom: 0; font-size: 0.85rem; color: #475569; line-height: 1.6;">
+                <li><strong>Phase 1:</strong> Resignation &amp; Notice Agreement (Current)</li>
+                <li><strong>Phase 2:</strong> Multi-Departmental Asset Clearance</li>
+                <li><strong>Phase 3:</strong> Full &amp; Final Financial Settlement</li>
+                <li><strong>Phase 4:</strong> Account Deactivation &amp; Service Letter</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

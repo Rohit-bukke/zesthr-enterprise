@@ -7,6 +7,7 @@ from . import views_payroll
 from . import views_compensation
 from . import views_leave
 from . import views_onboarding
+from . import views_offboarding
 from django.contrib.auth import views as auth
 from django.contrib.auth.decorators import login_required
 from django.urls import path
@@ -119,4 +120,14 @@ urlpatterns = [
     path("onboarding/review/", views_onboarding.onboarding_review_queue, name="onboarding_review_queue"),
     path("onboarding/review/<int:pk>/", views_onboarding.onboarding_review_detail, name="onboarding_review_detail"),
     path("onboarding/review/<int:pk>/action/", views_onboarding.onboarding_review_action, name="onboarding_review_action"),
+    path("onboarding/tracker/", views_onboarding.onboarding_tracker, name="onboarding_tracker"),
+    path("onboarding/tasks/<int:pk>/action/", views_onboarding.onboarding_task_action, name="onboarding_task_action"),
+    # Offboarding & Separation (Interactive Offboarding Engine)
+    path("offboarding/resign/", views_offboarding.resignation_submit, name="offboarding_resignation_submit"),
+    path("offboarding/resignation/status/", views_offboarding.resignation_status, name="offboarding_resignation_status"),
+    path("offboarding/requests/", views_offboarding.exit_requests_list, name="offboarding_requests_list"),
+    path("offboarding/requests/<int:pk>/", views_offboarding.exit_request_detail, name="offboarding_request_detail"),
+    path("offboarding/requests/<int:pk>/review/", views_offboarding.exit_request_review, name="offboarding_request_review"),
+    path("offboarding/clearance/", views_offboarding.exit_clearance_console, name="offboarding_clearance_console"),
+    path("offboarding/clearance/<int:pk>/action/", views_offboarding.exit_clearance_action, name="offboarding_clearance_action"),
 ]

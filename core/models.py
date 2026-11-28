@@ -1287,3 +1287,4 @@ from .models_banking import EmployeeBankAccount  # noqa: E402,F401
 from .models_compensation import CompensationBand, SalaryRevision  # noqa: E402,F401
 from .models_expenses import ExpenseCategory, ExpenseClaim  # noqa: E402,F401
 from .models_onboarding import CandidateInvitation  # noqa: E402,F401
+from .models_offboarding import ExitRequest, ExitClearanceItem  # noqa: E402,F401

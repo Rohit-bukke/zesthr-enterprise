@@ -360,3 +360,157 @@ class OnboardingProfile(models.Model):
             self.permanent_address = self.current_address
         super().save(*args, **kwargs)
 
+
+class OnboardingChecklist(models.Model):
+    """
+    Checklist coordinating provisioning and orientation tasks across IT, HR, Facilities, and Manager.
+    """
+    STATUS_PENDING = "PENDING"
+    STATUS_IN_PROGRESS = "IN_PROGRESS"
+    STATUS_COMPLETED = "COMPLETED"
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_IN_PROGRESS, "In Progress"),
+        (STATUS_COMPLETED, "Completed"),
+    ]
+
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.PROTECT,
+        related_name="onboarding_checklists"
+    )
+    invitation = models.OneToOneField(
+        CandidateInvitation,
+        on_delete=models.CASCADE,
+        related_name="onboarding_checklist"
+    )
+    employee = models.ForeignKey(
+        "core.Employee",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="onboarding_checklists"
+    )
+    title = models.CharField(max_length=200, help_text="e.g. Onboarding Checklist: Jane Doe")
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING
+    )
+    target_date = models.DateField(null=True, blank=True, help_text="Expected completion deadline")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "onboarding_checklist"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.title} ({self.get_status_display()})"
+
+    @property
+    def total_tasks(self):
+        return self.tasks.count()
+
+    @property
+    def completed_tasks(self):
+        return self.tasks.filter(status=OnboardingTask.STATUS_COMPLETED).count()
+
+    @property
+    def progress_percentage(self):
+        total = self.total_tasks
+        if total == 0:
+            return 0
+        return int((self.completed_tasks / total) * 100)
+
+    def update_overall_status(self):
+        """Recomputes and saves overall status based on child task completion."""
+        total = self.total_tasks
+        if total == 0:
+            self.status = self.STATUS_PENDING
+        else:
+            completed = self.completed_tasks
+            if completed == total:
+                self.status = self.STATUS_COMPLETED
+            elif completed > 0 or self.tasks.filter(status=OnboardingTask.STATUS_IN_PROGRESS).exists():
+                self.status = self.STATUS_IN_PROGRESS
+            else:
+                self.status = self.STATUS_PENDING
+        self.save(update_fields=["status", "updated_at"])
+
+
+class OnboardingTask(models.Model):
+    """
+    Individual departmental onboarding task (e.g., IT hardware, HR paperwork, Facilities desk, Manager 1-on-1).
+    """
+    ROLE_IT = "IT"
+    ROLE_HR = "HR"
+    ROLE_FACILITIES = "FACILITIES"
+    ROLE_MANAGER = "MANAGER"
+
+    DEPARTMENT_ROLE_CHOICES = [
+        (ROLE_IT, "IT / Tech Provisioning"),
+        (ROLE_HR, "Human Resources"),
+        (ROLE_FACILITIES, "Admin / Facilities"),
+        (ROLE_MANAGER, "Hiring Manager"),
+    ]
+
+    STATUS_PENDING = "PENDING"
+    STATUS_IN_PROGRESS = "IN_PROGRESS"
+    STATUS_COMPLETED = "COMPLETED"
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_IN_PROGRESS, "In Progress"),
+        (STATUS_COMPLETED, "Completed"),
+    ]
+
+    checklist = models.ForeignKey(
+        OnboardingChecklist,
+        on_delete=models.CASCADE,
+        related_name="tasks"
+    )
+    department_role = models.CharField(
+        max_length=20,
+        choices=DEPARTMENT_ROLE_CHOICES,
+        default=ROLE_HR
+    )
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    due_date = models.DateField(null=True, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING
+    )
+    completed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="completed_onboarding_tasks"
+    )
+    completed_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True, help_text="Fulfillment notes (e.g. Asset tag, Slack handle)")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "onboarding_task"
+        ordering = ["due_date", "id"]
+
+    def __str__(self):
+        return f"[{self.department_role}] {self.title} ({self.get_status_display()})"
+
+    def mark_completed(self, user=None, notes=""):
+        self.status = self.STATUS_COMPLETED
+        self.completed_at = timezone.now()
+        if user:
+            self.completed_by = user
+        if notes:
+            self.notes = notes
+        self.save(update_fields=["status", "completed_at", "completed_by", "notes", "updated_at"])
+        self.checklist.update_overall_status()
+
+
