@@ -52,14 +52,20 @@
         <a class="{% if n == 'onboarding_invitations' %}on{% endif %}" href="{% url 'onboarding_invitations' %}">Onboarding Invitations</a>
         <a class="{% if 'onboarding_review' in n %}on{% endif %}" href="{% url 'onboarding_review_queue' %}">Onboarding Verification</a>
         <a class="{% if n == 'onboarding_tracker' %}on{% endif %}" href="{% url 'onboarding_tracker' %}">Task Tracker</a>
+        <a class="{% if 'offboarding' in n %}on{% endif %}" href="{% url 'offboarding_requests_list' %}">Exit & Resignations</a>
       {% endif %}
       <a class="{% if 'department' in n %}on{% endif %}" href="{% url 'department_list' %}">Departments</a>
       <a class="{% if 'designation' in n %}on{% endif %}" href="{% url 'designation_list' %}">Designations</a>
-      {% if user.employee_profile %}<a class="{% if n == 'my_profile' or n == 'my_profile_edit' %}on{% endif %}" href="{% url 'my_profile' %}">My Profile</a>{% if perms.core.view_all_attendance %}<a class="{% if n == 'my_portal' %}on{% endif %}" href="{% url 'my_portal' %}">My portal</a>{% endif %}{% endif %}
+      {% if user.employee_profile %}
+        <a class="{% if n == 'my_profile' or n == 'my_profile_edit' %}on{% endif %}" href="{% url 'my_profile' %}">My Profile</a>
+        <a class="{% if 'resignation' in n %}on{% endif %}" href="{% url 'offboarding_resignation_submit' %}">Resignation & Exit</a>
+        {% if perms.core.view_all_attendance %}<a class="{% if n == 'my_portal' %}on{% endif %}" href="{% url 'my_portal' %}">My portal</a>{% endif %}
+      {% endif %}
     </details>
     {% elif user.employee_profile %}
-    <details {% if n == 'my_profile' or n == 'my_profile_edit' %}open{% endif %}><summary>Employees</summary>
+    <details {% if n == 'my_profile' or n == 'my_profile_edit' or 'resignation' in n %}open{% endif %}><summary>Employees</summary>
       <a class="{% if n == 'my_profile' or n == 'my_profile_edit' %}on{% endif %}" href="{% url 'my_profile' %}">My Profile</a>
+      <a class="{% if 'resignation' in n %}on{% endif %}" href="{% url 'offboarding_resignation_submit' %}">Resignation & Exit</a>
     </details>
     {% endif %}
 

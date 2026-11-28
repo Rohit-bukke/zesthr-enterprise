@@ -513,4 +513,16 @@ class OnboardingTaskAdmin(admin.ModelAdmin):
     search_fields = ("title", "checklist__title", "notes")
 
 
+from .models_offboarding import ExitRequest
+
+
+@admin.register(ExitRequest)
+class ExitRequestAdmin(TenantAdmin):
+    list_display = ("employee", "organization", "resignation_date", "requested_lwd", "official_lwd", "notice_period_days", "notice_shortfall_days", "status")
+    list_filter = ("status", "reason_category", "resignation_date", "organization")
+    search_fields = ("employee__name", "employee__email", "reason_detail", "review_notes")
+    readonly_fields = ("created_at", "updated_at", "notice_shortfall_days")
+
+
+
 

@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Exit &amp; Resignation Requests | HROS{% endblock %}
+
+{% block content %}
+<div class="head">
+    <div>
+        <h1>Employee Exit &amp; Resignation Requests</h1>
+        <p class="muted">Review employee resignations, manage notice periods, approve last working days, and monitor offboarding pipelines.</p>
+    </div>
+    <div class="actions">
+        <a class="btn ghost" href="{% url 'employee_list' %}">&larr; All Employees</a>
+        <a class="btn ghost" href="{% url 'onboarding_tracker' %}">Onboarding Tracker</a>
+    </div>
+</div>
+
+<!-- Summary Metric Cards -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+    <a href="?status=all" style="text-decoration: none; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: block;">
+        <span style="font-size: 0.8rem; font-weight: 600; color: #4338ca; text-transform: uppercase;">Total Requests</span>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #1e1b4b; margin-top: 0.25rem;">{{ counts.all }}</div>
+    </a>
+    <a href="?status=SUBMITTED" style="text-decoration: none; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: block;">
+        <span style="font-size: 0.8rem; font-weight: 600; color: #b45309; text-transform: uppercase;">Awaiting Review</span>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #78350f; margin-top: 0.25rem;">{{ counts.submitted }}</div>
+    </a>
+    <a href="?status=APPROVED" style="text-decoration: none; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: block;">
+        <span style="font-size: 0.8rem; font-weight: 600; color: #0284c7; text-transform: uppercase;">Serving Notice</span>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #075985; margin-top: 0.25rem;">{{ counts.approved }}</div>
+    </a>
+    <a href="?status=CLEARANCE_IN_PROGRESS" style="text-decoration: none; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: block;">
+        <span style="font-size: 0.8rem; font-weight: 600; color: #7c3aed; text-transform: uppercase;">Clearance Ongoing</span>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #5b21b6; margin-top: 0.25rem;">{{ counts.clearance }}</div>
+    </a>
+    <a href="?status=SETTLED" style="text-decoration: none; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: block;">
+        <span style="font-size: 0.8rem; font-weight: 600; color: #15803d; text-transform: uppercase;">Fully Settled</span>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #14532d; margin-top: 0.25rem;">{{ counts.settled }}</div>
+    </a>
+</div>
+
+<!-- Filters & Search Form -->
+<div class="card" style="margin-bottom: 1.5rem; padding: 1rem;">
+    <form method="get" style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+        <div style="flex: 1; min-width: 240px;">
+            <input type="text" name="q" value="{{ search_query }}" placeholder="Search by employee name or email..." class="form-control" style="width: 100%;">
+        </div>
+        <div>
+            <select name="status" class="form-control" onchange="this.form.submit()">
+                <option value="all" {% if current_status == 'all' %}selected{% endif %}>All Requests</option>
+                <option value="SUBMITTED" {% if current_status == 'SUBMITTED' %}selected{% endif %}>Awaiting Manager Review</option>
+                <option value="APPROVED" {% if current_status == 'APPROVED' %}selected{% endif %}>Approved (Serving Notice)</option>
+                <option value="CLEARANCE_IN_PROGRESS" {% if current_status == 'CLEARANCE_IN_PROGRESS' %}selected{% endif %}>Clearance In Progress</option>
+                <option value="SETTLED" {% if current_status == 'SETTLED' %}selected{% endif %}>Settled &amp; Relieved</option>
+                <option value="REJECTED" {% if current_status == 'REJECTED' %}selected{% endif %}>Rejected / Declined</option>
+            </select>
+        </div>
+        <button type="submit" class="btn">Filter</button>
+        {% if search_query or current_status != 'ALL' %}
+            <a href="{% url 'offboarding_requests_list' %}" class="btn ghost">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Requests Table -->
+<section class="card">
+    <div class="scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Role &amp; Department</th>
+                    <th>Submitted On</th>
+                    <th>Requested LWD</th>
+                    <th>Official LWD</th>
+                    <th>Notice Shortfall</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for req in page_obj %}
+                <tr>
+                    <td>
+                        <strong>{{ req.employee.name }}</strong>
+                        <div class="muted" style="font-size: 0.8rem;">{{ req.employee.email }}</div>
+                    </td>
+                    <td>
+                        {{ req.employee.designation|default:"Team Member" }}
+                        <div class="muted" style="font-size: 0.8rem;">{{ req.employee.department.name|default:"General" }}</div>
+                    </td>
+                    <td>{{ req.resignation_date|date:"d M Y" }}</td>
+                    <td>{{ req.requested_lwd|date:"d M Y" }}</td>
+                    <td>
+                        {% if req.official_lwd %}
+                            <strong>{{ req.official_lwd|date:"d M Y" }}</strong>
+                        {% else %}
+                            <span class="muted">Pending Review</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if req.notice_shortfall_days > 0 %}
+                            <span class="badge" style="background: #fee2e2; color: #b91c1c;">{{ req.notice_shortfall_days }} day{{ req.notice_shortfall_days|pluralize }}</span>
+                        {% else %}
+                            <span class="badge" style="background: #dcfce7; color: #15803d;">None (0d)</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if req.status == "SUBMITTED" %}
+                            <span class="badge" style="background: #fef3c7; color: #92400e;">Awaiting Review</span>
+                        {% elif req.status == "APPROVED" %}
+                            <span class="badge" style="background: #dbeafe; color: #1e40af;">Approved</span>
+                        {% elif req.status == "CLEARANCE_IN_PROGRESS" %}
+                            <span class="badge" style="background: #f3e8ff; color: #6b21a8;">Clearance</span>
+                        {% elif req.status == "SETTLED" %}
+                            <span class="badge" style="background: #dcfce7; color: #15803d;">Settled</span>
+                        {% elif req.status == "REJECTED" %}
+                            <span class="badge" style="background: #fee2e2; color: #b91c1c;">Rejected</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'offboarding_request_detail' req.pk %}" class="btn" style="padding: 4px 10px; font-size: 0.85rem;">
+                            {% if req.status == "SUBMITTED" %}Review &rarr;{% else %}View &rarr;{% endif %}
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="muted" style="text-align: center; padding: 2rem;">
+                        No resignation requests found matching the current criteria.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div style="display: flex; justify-content: center; gap: 8px; padding: 1rem;">
+        {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}{% if current_status != 'ALL' %}&status={{ current_status }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" class="btn ghost">&laquo; Previous</a>
+        {% endif %}
+        <span style="align-self: center; font-size: 0.85rem;" class="muted">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </span>
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% if current_status != 'ALL' %}&status={{ current_status }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" class="btn ghost">Next &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
