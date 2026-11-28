@@ -120,6 +120,32 @@ class ExitRequest(models.Model):
     def standard_lwd(self):
         return self.resignation_date + timedelta(days=self.notice_period_days)
 
+    @property
+    def total_clearance_items(self):
+        return self.clearance_items.count()
+
+    @property
+    def cleared_clearance_items(self):
+        return self.clearance_items.filter(status=ExitClearanceItem.STATUS_CLEARED).count()
+
+    @property
+    def clearance_percentage(self):
+        total = self.total_clearance_items
+        if total == 0:
+            return 0
+        return int((self.cleared_clearance_items / total) * 100)
+
+    @property
+    def is_clearance_complete(self):
+        total = self.total_clearance_items
+        return total > 0 and self.cleared_clearance_items == total
+
+    def check_clearance_completion(self):
+        """Update overall status if all items are cleared."""
+        if self.is_clearance_complete and self.status == self.STATUS_CLEARANCE_IN_PROGRESS:
+            # All items cleared - ready for final settlement
+            pass
+
     def calculate_shortfall(self):
         if self.shortfall_waived:
             self.notice_shortfall_days = 0
@@ -146,3 +172,93 @@ class ExitRequest(models.Model):
             self.resignation_date = timezone.localdate()
         self.calculate_shortfall()
         super().save(*args, **kwargs)
+
+
+class ExitClearanceItem(models.Model):
+    """
+    Departmental exit clearance gates (IT, Finance, HR, Facilities) required before official employee release.
+    """
+    ROLE_IT = "IT"
+    ROLE_FINANCE = "FINANCE"
+    ROLE_HR = "HR"
+    ROLE_FACILITIES = "FACILITIES"
+
+    DEPARTMENT_ROLE_CHOICES = [
+        (ROLE_IT, "Information Technology (IT)"),
+        (ROLE_FINANCE, "Finance & Accounts"),
+        (ROLE_HR, "Human Resources (HR)"),
+        (ROLE_FACILITIES, "Admin & Facilities"),
+    ]
+
+    STATUS_PENDING = "PENDING"
+    STATUS_IN_PROGRESS = "IN_PROGRESS"
+    STATUS_CLEARED = "CLEARED"
+    STATUS_BLOCKED = "BLOCKED"
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_IN_PROGRESS, "In Progress"),
+        (STATUS_CLEARED, "Cleared (No Dues)"),
+        (STATUS_BLOCKED, "Blocked / Action Required"),
+    ]
+
+    exit_request = models.ForeignKey(
+        ExitRequest,
+        on_delete=models.CASCADE,
+        related_name="clearance_items"
+    )
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.PROTECT,
+        related_name="exit_clearance_items"
+    )
+    department_role = models.CharField(
+        max_length=20,
+        choices=DEPARTMENT_ROLE_CHOICES,
+        default=ROLE_HR
+    )
+    item_name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING
+    )
+    cleared_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cleared_exit_items"
+    )
+    cleared_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True, help_text="Inspection notes, recovery deductions, or return receipts")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "exit_clearance_item"
+        ordering = ["department_role", "id"]
+
+    def __str__(self):
+        return f"[{self.department_role}] {self.item_name} ({self.get_status_display()})"
+
+    def mark_cleared(self, user=None, notes=""):
+        self.status = self.STATUS_CLEARED
+        self.cleared_at = timezone.now()
+        if user:
+            self.cleared_by = user
+        if notes:
+            self.notes = notes
+        self.save(update_fields=["status", "cleared_at", "cleared_by", "notes", "updated_at"])
+        self.exit_request.check_clearance_completion()
+
+    def mark_blocked(self, user=None, notes=""):
+        self.status = self.STATUS_BLOCKED
+        if user:
+            self.cleared_by = user
+        if notes:
+            self.notes = notes
+        self.save(update_fields=["status", "cleared_by", "notes", "updated_at"])
+        self.exit_request.check_clearance_completion()
+

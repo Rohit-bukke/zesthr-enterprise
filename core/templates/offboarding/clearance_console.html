@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}Exit Clearance Console | HRMS Portal{% endblock %}
+
+{% block content %}
+<div class="head">
+    <div>
+        <h1>Multi-Departmental Exit Clearance Console</h1>
+        <p class="muted">Monitor cross-departmental exit clearance gates (IT, Finance, HR, Facilities) and manage deprovisioning handovers for departing employees.</p>
+    </div>
+    <div class="actions">
+        <a class="btn ghost" href="{% url 'offboarding_requests_list' %}">&larr; Resignation Requests</a>
+        <a class="btn ghost" href="{% url 'employee_list' %}">All Employees</a>
+    </div>
+</div>
+
+<!-- Clearance Metrics Overview Cards -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+        <span style="font-size: 0.8rem; font-weight: 600; color: #4338ca; text-transform: uppercase;">Active Exits</span>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #1e1b4b; margin-top: 0.25rem;">{{ total_employees }}</div>
+        <small class="muted">{{ completed_clearance_count }} cleared, {{ total_employees|add:"-"|add:completed_clearance_count }} pending</small>
+    </div>
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+        <span style="font-size: 0.8rem; font-weight: 600; color: #15803d; text-transform: uppercase;">Fully Cleared Staff</span>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #14532d; margin-top: 0.25rem;">{{ completed_clearance_count }}</div>
+        <small class="muted">All 4 department gates cleared</small>
+    </div>
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+        <span style="font-size: 0.8rem; font-weight: 600; color: #b91c1c; text-transform: uppercase;">Blocked Checklist Items</span>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #7f1d1d; margin-top: 0.25rem;">{{ blocked_items_count }}</div>
+        <small class="muted">Requires escalation or recovery</small>
+    </div>
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+        <span style="font-size: 0.8rem; font-weight: 600; color: #0284c7; text-transform: uppercase;">Clearance Items Fulfillment</span>
+        <div style="font-size: 1.75rem; font-weight: 700; color: #075985; margin-top: 0.25rem;">
+            {{ cleared_items_count }} / {{ total_items_count }}
+        </div>
+        <small class="muted">Across all department checklists</small>
+    </div>
+</div>
+
+<!-- Department Filters & Search Form -->
+<div class="card" style="margin-bottom: 1.5rem; padding: 1rem;">
+    <form method="get" style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+        <div style="flex: 1; min-width: 240px;">
+            <input type="text" name="q" value="{{ search_query }}" placeholder="Search by departing employee, email, department..." class="form-control" style="width: 100%;">
+        </div>
+        <div>
+            <select name="role" class="form-control" onchange="this.form.submit()">
+                {% for code, label in roles_list %}
+                    <option value="{{ code }}" {% if current_role == code %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <select name="status" class="form-control" onchange="this.form.submit()">
+                <option value="all" {% if current_status == 'all' %}selected{% endif %}>All Item Statuses</option>
+                <option value="PENDING" {% if current_status == 'PENDING' %}selected{% endif %}>Pending</option>
+                <option value="IN_PROGRESS" {% if current_status == 'IN_PROGRESS' %}selected{% endif %}>In Progress</option>
+                <option value="CLEARED" {% if current_status == 'CLEARED' %}selected{% endif %}>Cleared</option>
+                <option value="BLOCKED" {% if current_status == 'BLOCKED' %}selected{% endif %}>Blocked</option>
+            </select>
+        </div>
+        <button type="submit" class="btn">Filter</button>
+        {% if search_query or current_role != 'ALL' or current_status != 'ALL' %}
+            <a href="{% url 'offboarding_clearance_console' %}" class="btn ghost">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Employee Clearance Cards -->
+{% if page_obj %}
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        {% for row in page_obj %}
+        <section class="card" style="padding: 1.25rem; border-radius: 8px;">
+            <!-- Employee Card Header & Department Gate Pills -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
+                <div>
+                    <h3 style="margin: 0; font-size: 1.2rem;">
+                        <a href="{% url 'offboarding_request_detail' row.exit_req.pk %}" style="text-decoration: none; color: inherit;">
+                            {{ row.exit_req.employee.name }}
+                        </a>
+                        <span class="muted" style="font-size: 0.9rem; font-weight: 400;">({{ row.exit_req.employee.email }})</span>
+                    </h3>
+                    <div class="muted" style="font-size: 0.85rem; margin-top: 0.25rem;">
+                        <span><strong>Position:</strong> {{ row.exit_req.employee.position.title|default:"Team Member" }}</span>
+                        &bull;
+                        <span><strong>Department:</strong> {{ row.exit_req.employee.department.name|default:"General" }}</span>
+                        &bull;
+                        <span><strong>Last Working Day:</strong> {{ row.effective_lwd|date:"d M Y"|default:"Not finalized" }}</span>
+                        {% if row.days_to_lwd is not None %}
+                            {% if row.days_to_lwd >= 0 %}
+                                <span class="badge" style="background: #e0f2fe; color: #0369a1; font-size: 0.75rem; margin-left: 4px;">{{ row.days_to_lwd }} days remaining</span>
+                            {% else %}
+                                <span class="badge" style="background: #fee2e2; color: #b91c1c; font-size: 0.75rem; margin-left: 4px;">Notice ended</span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Department Gating Status Badges -->
+                <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+                    <span style="font-size: 0.8rem; font-weight: 600; margin-right: 2px;">Gates:</span>
+                    <!-- IT Gate -->
+                    <span class="badge" style="{% if row.gates.IT %}background: #dcfce7; color: #15803d;{% else %}background: #fef3c7; color: #92400e;{% endif %} font-size: 0.75rem; padding: 4px 8px;">
+                        IT: {% if row.gates.IT %}&#10003; Clear{% else %}&#9675; Pending{% endif %}
+                    </span>
+                    <!-- Finance Gate -->
+                    <span class="badge" style="{% if row.gates.FINANCE %}background: #dcfce7; color: #15803d;{% else %}background: #fef3c7; color: #92400e;{% endif %} font-size: 0.75rem; padding: 4px 8px;">
+                        Finance: {% if row.gates.FINANCE %}&#10003; Clear{% else %}&#9675; Pending{% endif %}
+                    </span>
+                    <!-- HR Gate -->
+                    <span class="badge" style="{% if row.gates.HR %}background: #dcfce7; color: #15803d;{% else %}background: #fef3c7; color: #92400e;{% endif %} font-size: 0.75rem; padding: 4px 8px;">
+                        HR: {% if row.gates.HR %}&#10003; Clear{% else %}&#9675; Pending{% endif %}
+                    </span>
+                    <!-- Facilities Gate -->
+                    <span class="badge" style="{% if row.gates.FACILITIES %}background: #dcfce7; color: #15803d;{% else %}background: #fef3c7; color: #92400e;{% endif %} font-size: 0.75rem; padding: 4px 8px;">
+                        Facilities: {% if row.gates.FACILITIES %}&#10003; Clear{% else %}&#9675; Pending{% endif %}
+                    </span>
+
+                    <a href="{% url 'offboarding_request_detail' row.exit_req.pk %}" class="btn ghost sm" style="margin-left: 8px;">View Request &rarr;</a>
+                </div>
+            </div>
+
+            <!-- Overall Clearance Progress Bar -->
+            <div style="margin-bottom: 1.25rem;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px;">
+                    <span class="muted">Overall Clearance Progress</span>
+                    <strong style="color: {% if row.progress_percentage == 100 %}#10b981{% else %}#4338ca{% endif %};">
+                        {{ row.cleared_items }} of {{ row.total_items }} items cleared ({{ row.progress_percentage }}%)
+                    </strong>
+                </div>
+                <div style="background: #e2e8f0; height: 10px; border-radius: 9999px; overflow: hidden;">
+                    <div style="background: {% if row.progress_percentage == 100 %}#10b981{% elif row.progress_percentage > 50 %}#6366f1{% else %}#3b82f6{% endif %}; height: 100%; width: {{ row.progress_percentage }}%; transition: width 0.3s ease;"></div>
+                </div>
+            </div>
+
+            <!-- Items Table -->
+            <div class="scroll">
+                <table style="width: 100%; font-size: 0.9rem;">
+                    <thead>
+                        <tr>
+                            <th style="width: 130px;">Department</th>
+                            <th>Clearance Checkpoint</th>
+                            <th style="width: 110px;">Status</th>
+                            <th>Verification &amp; Handover Notes</th>
+                            <th style="width: 220px; text-align: right;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in row.items %}
+                        <tr style="{% if item.status == 'CLEARED' %}background: #f8fafc; opacity: 0.9;{% elif item.status == 'BLOCKED' %}background: #fff1f2;{% endif %}">
+                            <td>
+                                {% if item.department_role == "IT" %}
+                                    <span class="badge" style="background: #dbeafe; color: #1e40af;">IT Systems</span>
+                                {% elif item.department_role == "FINANCE" %}
+                                    <span class="badge" style="background: #fef3c7; color: #92400e;">Finance / Payroll</span>
+                                {% elif item.department_role == "HR" %}
+                                    <span class="badge" style="background: #f3e8ff; color: #6b21a8;">Human Resources</span>
+                                {% elif item.department_role == "FACILITIES" %}
+                                    <span class="badge" style="background: #ccfbf1; color: #0f766e;">Admin &amp; Facilities</span>
+                                {% else %}
+                                    <span class="badge">{{ item.get_department_role_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <strong>{{ item.item_name }}</strong>
+                                {% if item.description %}
+                                    <div class="muted" style="font-size: 0.8rem; margin-top: 2px;">{{ item.description }}</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.status == "CLEARED" %}
+                                    <span class="badge" style="background: #dcfce7; color: #15803d;">Cleared</span>
+                                {% elif item.status == "BLOCKED" %}
+                                    <span class="badge" style="background: #fee2e2; color: #b91c1c;">Blocked</span>
+                                {% elif item.status == "IN_PROGRESS" %}
+                                    <span class="badge" style="background: #dbeafe; color: #1d4ed8;">In Progress</span>
+                                {% else %}
+                                    <span class="badge" style="background: #f1f5f9; color: #475569;">Pending</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.notes %}
+                                    <div style="font-size: 0.85rem; color: #334155;">{{ item.notes }}</div>
+                                {% endif %}
+                                {% if item.cleared_at %}
+                                    <small class="muted" style="display: block; font-size: 0.75rem;">
+                                        Cleared {{ item.cleared_at|date:"d M, H:i" }}
+                                        {% if item.cleared_by %} by {{ item.cleared_by.get_full_name|default:item.cleared_by.username }}{% endif %}
+                                    </small>
+                                {% endif %}
+
+                                <details style="margin-top: 4px;">
+                                    <summary style="font-size: 0.75rem; color: #4f46e5; cursor: pointer;">
+                                        {% if item.notes %}Edit Note{% else %}+ Add Handover / Blocker Note{% endif %}
+                                    </summary>
+                                    <form method="post" action="{% url 'offboarding_clearance_action' item.pk %}" style="margin-top: 6px; display: flex; gap: 4px;">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="update_notes">
+                                        <input type="text" name="notes" value="{{ item.notes }}" placeholder="Serial number, ticket ID, dues amount, or blocker reason..." style="font-size: 0.8rem; padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 4px; flex: 1;">
+                                        <button type="submit" class="btn" style="padding: 3px 8px; font-size: 0.75rem;">Save</button>
+                                    </form>
+                                </details>
+                            </td>
+                            <td style="text-align: right;">
+                                <div style="display: flex; gap: 4px; justify-content: flex-end; align-items: center; flex-wrap: wrap;">
+                                    {% if item.status == "PENDING" or item.status == "IN_PROGRESS" %}
+                                        {% if item.status == "PENDING" %}
+                                            <form method="post" action="{% url 'offboarding_clearance_action' item.pk %}" style="display: inline;">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="action" value="in_progress">
+                                                <button type="submit" class="btn ghost" style="padding: 3px 8px; font-size: 0.8rem;">Start</button>
+                                            </form>
+                                        {% endif %}
+                                        <form method="post" action="{% url 'offboarding_clearance_action' item.pk %}" style="display: inline;">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="clear">
+                                            <button type="submit" class="btn" style="padding: 3px 8px; font-size: 0.8rem; background: #16a34a; border-color: #16a34a;">Clear</button>
+                                        </form>
+                                        <form method="post" action="{% url 'offboarding_clearance_action' item.pk %}" style="display: inline;">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="block">
+                                            <button type="submit" class="btn ghost" style="padding: 3px 8px; font-size: 0.8rem; color: #dc2626; border-color: #fca5a5;">Block</button>
+                                        </form>
+                                    {% elif item.status == "BLOCKED" %}
+                                        <form method="post" action="{% url 'offboarding_clearance_action' item.pk %}" style="display: inline;">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="clear">
+                                            <button type="submit" class="btn" style="padding: 3px 8px; font-size: 0.8rem; background: #16a34a; border-color: #16a34a;">Clear</button>
+                                        </form>
+                                        <form method="post" action="{% url 'offboarding_clearance_action' item.pk %}" style="display: inline;">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="reopen">
+                                            <button type="submit" class="btn ghost" style="padding: 3px 8px; font-size: 0.8rem;">Unblock</button>
+                                        </form>
+                                    {% else %}
+                                        <form method="post" action="{% url 'offboarding_clearance_action' item.pk %}" style="display: inline;">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="reopen">
+                                            <button type="submit" class="btn ghost" style="padding: 3px 8px; font-size: 0.8rem;">Reopen</button>
+                                        </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="muted" style="text-align: center; padding: 1rem;">
+                                No clearance checkpoints found matching the selected filter.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div style="display: flex; justify-content: center; gap: 8px; margin-top: 1.5rem;">
+        {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}{% if current_role != 'ALL' %}&role={{ current_role }}{% endif %}{% if current_status != 'ALL' %}&status={{ current_status }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" class="btn ghost">&laquo; Previous</a>
+        {% endif %}
+        <span style="align-self: center; font-size: 0.85rem;" class="muted">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </span>
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% if current_role != 'ALL' %}&role={{ current_role }}{% endif %}{% if current_status != 'ALL' %}&status={{ current_status }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" class="btn ghost">Next &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+{% else %}
+    <div class="card" style="text-align: center; padding: 3rem 1rem;">
+        <h3 style="color: #64748b;">No Active Exit Clearances Found</h3>
+        <p class="muted">No departing employees currently have clearance checklists under the selected criteria.</p>
+        {% if search_query or current_role != 'ALL' or current_status != 'ALL' %}
+            <a href="{% url 'offboarding_clearance_console' %}" class="btn" style="margin-top: 1rem;">Reset Filters</a>
+        {% else %}
+            <a href="{% url 'offboarding_requests_list' %}" class="btn" style="margin-top: 1rem;">Go to Resignation Requests</a>
+        {% endif %}
+    </div>
+{% endif %}
+{% endblock %}

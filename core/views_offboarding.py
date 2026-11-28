@@ -12,8 +12,13 @@ from apps.organizations.tenancy import scope_queryset
 from core import roles
 from core.forms_offboarding import ExitRequestReviewForm, ResignationSubmissionForm
 from core.models import Employee
-from core.models_offboarding import ExitRequest
-from core.services.offboarding import review_exit_request, submit_resignation
+from core.models_offboarding import ExitClearanceItem, ExitRequest
+from core.services.offboarding import (
+    action_clearance_item,
+    generate_exit_clearance_items,
+    review_exit_request,
+    submit_resignation,
+)
 
 
 def _can_manage_offboarding(user):
@@ -277,3 +282,178 @@ def exit_request_review(request, pk):
                 messages.error(request, err)
 
     return redirect("offboarding_request_detail", pk=pk)
+
+
+@login_required
+def exit_clearance_console(request):
+    """
+    Multi-departmental exit clearance tracking console (IT, Finance, HR, Facilities).
+    Shows departing employees with gating status, progress bars, and one-click actions.
+    """
+    if not _can_manage_offboarding(request.user):
+        raise PermissionDenied("You do not have permission to access the exit clearance console.")
+
+    current_role = request.GET.get("role", "all").strip().upper()
+    current_status = request.GET.get("status", "all").strip().upper()
+    search_query = request.GET.get("q", "").strip()
+
+    # Query active exit requests undergoing or ready for clearance
+    exit_requests_qs = scope_queryset(
+        ExitRequest.objects.filter(
+            status__in=[
+                ExitRequest.STATUS_CLEARANCE_IN_PROGRESS,
+                ExitRequest.STATUS_APPROVED,
+                ExitRequest.STATUS_SETTLED,
+            ]
+        ).select_related(
+            "employee",
+            "employee__department",
+            "employee__position",
+            "organization",
+        ).prefetch_related(
+            "clearance_items",
+            "clearance_items__cleared_by",
+        ),
+        request.user
+    )
+
+    if search_query:
+        exit_requests_qs = exit_requests_qs.filter(
+            models.Q(employee__name__icontains=search_query)
+            | models.Q(employee__email__icontains=search_query)
+            | models.Q(employee__department__name__icontains=search_query)
+            | models.Q(employee__position__title__icontains=search_query)
+        )
+
+    today = timezone.localdate()
+    valid_roles = [
+        ExitClearanceItem.ROLE_IT,
+        ExitClearanceItem.ROLE_FINANCE,
+        ExitClearanceItem.ROLE_HR,
+        ExitClearanceItem.ROLE_FACILITIES,
+    ]
+
+    total_employees = exit_requests_qs.count()
+    completed_clearance_count = 0
+    blocked_items_count = 0
+    total_items_count = 0
+    cleared_items_count = 0
+
+    clearance_data = []
+    for exit_req in exit_requests_qs:
+        all_items = list(exit_req.clearance_items.all())
+
+        # Auto-instantiate if not yet generated
+        if not all_items:
+            all_items = generate_exit_clearance_items(exit_req)
+
+        # Department gates summary for this employee
+        gates = {
+            "IT": all(item.status == ExitClearanceItem.STATUS_CLEARED for item in all_items if item.department_role == ExitClearanceItem.ROLE_IT),
+            "FINANCE": all(item.status == ExitClearanceItem.STATUS_CLEARED for item in all_items if item.department_role == ExitClearanceItem.ROLE_FINANCE),
+            "HR": all(item.status == ExitClearanceItem.STATUS_CLEARED for item in all_items if item.department_role == ExitClearanceItem.ROLE_HR),
+            "FACILITIES": all(item.status == ExitClearanceItem.STATUS_CLEARED for item in all_items if item.department_role == ExitClearanceItem.ROLE_FACILITIES),
+        }
+
+        # Filter items if specific role is selected
+        if current_role in valid_roles:
+            filtered_items = [i for i in all_items if i.department_role == current_role]
+        else:
+            filtered_items = all_items
+
+        if current_status in dict(ExitClearanceItem.STATUS_CHOICES):
+            filtered_items = [i for i in filtered_items if i.status == current_status]
+
+        for item in all_items:
+            total_items_count += 1
+            if item.status == ExitClearanceItem.STATUS_CLEARED:
+                cleared_items_count += 1
+            elif item.status == ExitClearanceItem.STATUS_BLOCKED:
+                blocked_items_count += 1
+
+        tot = len(all_items)
+        clr = sum(1 for i in all_items if i.status == ExitClearanceItem.STATUS_CLEARED)
+        prog = int((clr / tot) * 100) if tot > 0 else 0
+        if prog == 100:
+            completed_clearance_count += 1
+
+        effective_lwd = exit_req.official_lwd or exit_req.requested_lwd
+        days_to_lwd = (effective_lwd - today).days if effective_lwd else None
+
+        clearance_data.append({
+            "exit_req": exit_req,
+            "items": filtered_items,
+            "total_items": tot,
+            "cleared_items": clr,
+            "progress_percentage": prog,
+            "gates": gates,
+            "effective_lwd": effective_lwd,
+            "days_to_lwd": days_to_lwd,
+        })
+
+    paginator = Paginator(clearance_data, 15)
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    roles_list = [
+        ("all", "All Departments"),
+        (ExitClearanceItem.ROLE_IT, "IT Department"),
+        (ExitClearanceItem.ROLE_FINANCE, "Finance & Accounts"),
+        (ExitClearanceItem.ROLE_HR, "Human Resources"),
+        (ExitClearanceItem.ROLE_FACILITIES, "Admin & Facilities"),
+    ]
+
+    return render(
+        request,
+        "offboarding/clearance_console.html",
+        {
+            "page_obj": page_obj,
+            "total_employees": total_employees,
+            "completed_clearance_count": completed_clearance_count,
+            "blocked_items_count": blocked_items_count,
+            "total_items_count": total_items_count,
+            "cleared_items_count": cleared_items_count,
+            "current_role": current_role,
+            "current_status": current_status,
+            "search_query": search_query,
+            "roles_list": roles_list,
+            "today": today,
+            "n": "offboarding_clearance_console",
+            "title": "Exit Clearance Console",
+        }
+    )
+
+
+@login_required
+def exit_clearance_action(request, pk):
+    """
+    POST action to clear, block, reopen, or annotate an exit clearance item.
+    """
+    if not _can_manage_offboarding(request.user):
+        raise PermissionDenied("You do not have permission to action exit clearance items.")
+
+    if request.method != "POST":
+        return redirect("offboarding_clearance_console")
+
+    item = get_object_or_404(
+        ExitClearanceItem.objects.select_related("exit_request", "organization"),
+        pk=pk
+    )
+
+    # Scoped tenancy check
+    scoped_requests = scope_queryset(ExitRequest.objects.all(), request.user)
+    if not scoped_requests.filter(pk=item.exit_request_id).exists():
+        raise PermissionDenied("You do not have access to this exit clearance item.")
+
+    action = request.POST.get("action", "").strip()
+    notes = request.POST.get("notes", "").strip()
+
+    try:
+        action_clearance_item(item.pk, user=request.user, action=action, notes=notes if notes else item.notes)
+        messages.success(request, f"Clearance item '{item.item_name}' updated.")
+    except ValidationError as e:
+        messages.error(request, str(e))
+
+    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or reverse("offboarding_clearance_console")
+    return redirect(next_url)
+

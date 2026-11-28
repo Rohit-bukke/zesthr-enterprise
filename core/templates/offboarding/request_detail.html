@@ -135,6 +135,18 @@
             </div>
         </section>
         {% endif %}
+
+        {% if exit_req.status == "APPROVED" or exit_req.status == "CLEARANCE_IN_PROGRESS" or exit_req.status == "SETTLED" %}
+        <section class="card" style="padding: 1.25rem; margin-top: 1.5rem; border-left: 4px solid #4f46e5;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h4 style="margin: 0 0 4px 0; color: #1e1b4b;">Exit Clearance Checklist</h4>
+                    <p class="muted" style="margin: 0; font-size: 0.85rem;">{{ exit_req.cleared_clearance_items }} of {{ exit_req.total_clearance_items }} checkpoints cleared ({{ exit_req.clearance_percentage }}%)</p>
+                </div>
+                <a href="{% url 'offboarding_clearance_console' %}?q={{ exit_req.employee.name|urlencode }}" class="btn sm">Open in Clearance Console &rarr;</a>
+            </div>
+        </section>
+        {% endif %}
     </div>
 
     <!-- Right Sidebar: Employee Profile Info -->
