@@ -128,7 +128,7 @@ class Command(BaseCommand):
                 employee=emp,
                 defaults={
                     "pan_number": f"ABCDE{i:04d}F",
-                    "uan_number": f"10012345678{i:01d}",
+                    "uan_number": f"1001234567{i:02d}",
                     "epf_enrolled": True,
                     "epf_restrict_to_ceiling": True,
                     "esi_enrolled": True,

@@ -246,3 +246,7 @@ class ProjectVerificationFixesTests(TestCase):
                 OrganizationMembership.objects.filter(user=u, is_active=True).exists(),
                 f"{uname} is missing an active OrganizationMembership",
             )
+        from core.models_statutory import EmployeeStatutoryProfile
+        for prof in EmployeeStatutoryProfile.objects.all():
+            if prof.uan_number:
+                self.assertLessEqual(len(prof.uan_number), 12)
