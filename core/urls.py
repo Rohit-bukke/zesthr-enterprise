@@ -119,4 +119,6 @@ urlpatterns = [
     path("onboarding/review/", views_onboarding.onboarding_review_queue, name="onboarding_review_queue"),
     path("onboarding/review/<int:pk>/", views_onboarding.onboarding_review_detail, name="onboarding_review_detail"),
     path("onboarding/review/<int:pk>/action/", views_onboarding.onboarding_review_action, name="onboarding_review_action"),
+    path("onboarding/tracker/", views_onboarding.onboarding_tracker, name="onboarding_tracker"),
+    path("onboarding/tasks/<int:pk>/action/", views_onboarding.onboarding_task_action, name="onboarding_task_action"),
 ]
