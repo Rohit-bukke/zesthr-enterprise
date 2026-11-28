@@ -1,0 +1,438 @@
+from datetime import timedelta
+from decimal import Decimal
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.db import models
+from django.utils import timezone
+
+
+class ExitRequest(models.Model):
+    """
+    Employee resignation submission, notice period calculation, and separation tracking.
+    """
+    STATUS_SUBMITTED = "SUBMITTED"
+    STATUS_APPROVED = "APPROVED"
+    STATUS_REJECTED = "REJECTED"
+    STATUS_CLEARANCE_IN_PROGRESS = "CLEARANCE_IN_PROGRESS"
+    STATUS_SETTLED = "SETTLED"
+
+    STATUS_CHOICES = [
+        (STATUS_SUBMITTED, "Submitted (Pending Review)"),
+        (STATUS_APPROVED, "Approved (Serving Notice)"),
+        (STATUS_REJECTED, "Rejected / Withdrawn"),
+        (STATUS_CLEARANCE_IN_PROGRESS, "Clearance In Progress"),
+        (STATUS_SETTLED, "Settled & Separated"),
+    ]
+
+    REASON_CAREER_GROWTH = "CAREER_GROWTH"
+    REASON_HIGHER_EDUCATION = "HIGHER_EDUCATION"
+    REASON_BETTER_COMPENSATION = "BETTER_COMPENSATION"
+    REASON_PERSONAL_RELOCATION = "PERSONAL_RELOCATION"
+    REASON_HEALTH = "HEALTH"
+    REASON_WORK_ENVIRONMENT = "WORK_ENVIRONMENT"
+    REASON_OTHER = "OTHER"
+
+    REASON_CHOICES = [
+        (REASON_CAREER_GROWTH, "Career Growth & Better Opportunities"),
+        (REASON_HIGHER_EDUCATION, "Pursuing Higher Education"),
+        (REASON_BETTER_COMPENSATION, "Better Compensation / Benefits"),
+        (REASON_PERSONAL_RELOCATION, "Personal / Family Relocation"),
+        (REASON_HEALTH, "Health & Medical Reasons"),
+        (REASON_WORK_ENVIRONMENT, "Work-Life Balance / Environment"),
+        (REASON_OTHER, "Other Reasons"),
+    ]
+
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.PROTECT,
+        related_name="exit_requests"
+    )
+    employee = models.ForeignKey(
+        "core.Employee",
+        on_delete=models.CASCADE,
+        related_name="exit_requests"
+    )
+    resignation_date = models.DateField(
+        help_text="Date on which resignation was submitted"
+    )
+    requested_lwd = models.DateField(
+        help_text="Employee's proposed Last Working Day"
+    )
+    official_lwd = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Manager / HR agreed official Last Working Day"
+    )
+    reason_category = models.CharField(
+        max_length=30,
+        choices=REASON_CHOICES,
+        default=REASON_CAREER_GROWTH
+    )
+    reason_detail = models.TextField(
+        blank=True,
+        help_text="Detailed resignation reasoning and handover notes"
+    )
+    notice_period_days = models.PositiveIntegerField(
+        default=30,
+        help_text="Standard contractual notice period in calendar days"
+    )
+    notice_shortfall_days = models.PositiveIntegerField(
+        default=0,
+        help_text="Days of notice shortfall subject to recovery or managerial waiver"
+    )
+    shortfall_waived = models.BooleanField(
+        default=False,
+        help_text="Whether notice period shortfall penalty is waived by management"
+    )
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS_CHOICES,
+        default=STATUS_SUBMITTED
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_exit_requests"
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_notes = models.TextField(
+        blank=True,
+        help_text="Manager / HR decision notes, handover conditions, or waiver reasons"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "exit_request"
+        ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(requested_lwd__gte=models.F("resignation_date")),
+                name="exit_req_requested_lwd_gte_resignation"
+            ),
+        ]
+
+    def __str__(self):
+        return f"ExitRequest: {self.employee.name} ({self.get_status_display()})"
+
+    @property
+    def standard_lwd(self):
+        return self.resignation_date + timedelta(days=self.notice_period_days)
+
+    @property
+    def total_clearance_items(self):
+        return self.clearance_items.count()
+
+    @property
+    def cleared_clearance_items(self):
+        return self.clearance_items.filter(status=ExitClearanceItem.STATUS_CLEARED).count()
+
+    @property
+    def clearance_percentage(self):
+        total = self.total_clearance_items
+        if total == 0:
+            return 0
+        return int((self.cleared_clearance_items / total) * 100)
+
+    @property
+    def is_clearance_complete(self):
+        total = self.total_clearance_items
+        return total > 0 and self.cleared_clearance_items == total
+
+    def check_clearance_completion(self):
+        """Update overall status if all items are cleared."""
+        if self.is_clearance_complete and self.status == self.STATUS_CLEARANCE_IN_PROGRESS:
+            # All items cleared - ready for final settlement
+            pass
+
+    def calculate_shortfall(self):
+        if self.shortfall_waived:
+            self.notice_shortfall_days = 0
+            return 0
+        effective_lwd = self.official_lwd or self.requested_lwd
+        if not effective_lwd or not self.resignation_date:
+            self.notice_shortfall_days = 0
+            return 0
+        standard = self.standard_lwd
+        if effective_lwd < standard:
+            self.notice_shortfall_days = (standard - effective_lwd).days
+        else:
+            self.notice_shortfall_days = 0
+        return self.notice_shortfall_days
+
+    def clean(self):
+        if self.requested_lwd and self.resignation_date and self.requested_lwd < self.resignation_date:
+            raise ValidationError("Requested last working day cannot be earlier than resignation date.")
+        if self.official_lwd and self.resignation_date and self.official_lwd < self.resignation_date:
+            raise ValidationError("Official last working day cannot be earlier than resignation date.")
+
+    def save(self, *args, **kwargs):
+        if not self.resignation_date:
+            self.resignation_date = timezone.localdate()
+        self.calculate_shortfall()
+        super().save(*args, **kwargs)
+
+
+class ExitClearanceItem(models.Model):
+    """
+    Departmental exit clearance gates (IT, Finance, HR, Facilities) required before official employee release.
+    """
+    ROLE_IT = "IT"
+    ROLE_FINANCE = "FINANCE"
+    ROLE_HR = "HR"
+    ROLE_FACILITIES = "FACILITIES"
+
+    DEPARTMENT_ROLE_CHOICES = [
+        (ROLE_IT, "Information Technology (IT)"),
+        (ROLE_FINANCE, "Finance & Accounts"),
+        (ROLE_HR, "Human Resources (HR)"),
+        (ROLE_FACILITIES, "Admin & Facilities"),
+    ]
+
+    STATUS_PENDING = "PENDING"
+    STATUS_IN_PROGRESS = "IN_PROGRESS"
+    STATUS_CLEARED = "CLEARED"
+    STATUS_BLOCKED = "BLOCKED"
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_IN_PROGRESS, "In Progress"),
+        (STATUS_CLEARED, "Cleared (No Dues)"),
+        (STATUS_BLOCKED, "Blocked / Action Required"),
+    ]
+
+    exit_request = models.ForeignKey(
+        ExitRequest,
+        on_delete=models.CASCADE,
+        related_name="clearance_items"
+    )
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.PROTECT,
+        related_name="exit_clearance_items"
+    )
+    department_role = models.CharField(
+        max_length=20,
+        choices=DEPARTMENT_ROLE_CHOICES,
+        default=ROLE_HR
+    )
+    item_name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING
+    )
+    cleared_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cleared_exit_items"
+    )
+    cleared_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True, help_text="Inspection notes, recovery deductions, or return receipts")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "exit_clearance_item"
+        ordering = ["department_role", "id"]
+
+    def __str__(self):
+        return f"[{self.department_role}] {self.item_name} ({self.get_status_display()})"
+
+    def mark_cleared(self, user=None, notes=""):
+        self.status = self.STATUS_CLEARED
+        self.cleared_at = timezone.now()
+        if user:
+            self.cleared_by = user
+        if notes:
+            self.notes = notes
+        self.save(update_fields=["status", "cleared_at", "cleared_by", "notes", "updated_at"])
+        self.exit_request.check_clearance_completion()
+
+    def mark_blocked(self, user=None, notes=""):
+        self.status = self.STATUS_BLOCKED
+        if user:
+            self.cleared_by = user
+        if notes:
+            self.notes = notes
+        self.save(update_fields=["status", "cleared_by", "notes", "updated_at"])
+        self.exit_request.check_clearance_completion()
+
+
+class ExitSettlement(models.Model):
+    """
+    Automated Full & Final (F&F) Financial Settlement Calculation Engine.
+    Encapsulates final earnings, statutory deductions, notice shortfall recoveries,
+    asset/advance adjustments, and net payable or recoverable balance.
+    """
+    STATUS_DRAFT = "DRAFT"
+    STATUS_CALCULATED = "CALCULATED"
+    STATUS_APPROVED = "APPROVED"
+    STATUS_SETTLED = "SETTLED"
+
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, "Draft"),
+        (STATUS_CALCULATED, "Calculated (Pending Review)"),
+        (STATUS_APPROVED, "Approved by Finance"),
+        (STATUS_SETTLED, "Settled & Disbursed"),
+    ]
+
+    exit_request = models.OneToOneField(
+        ExitRequest,
+        on_delete=models.CASCADE,
+        related_name="settlement"
+    )
+    employee = models.ForeignKey(
+        "core.Employee",
+        on_delete=models.PROTECT,
+        related_name="exit_settlements"
+    )
+    organization = models.ForeignKey(
+        "organizations.Organization",
+        on_delete=models.PROTECT,
+        related_name="exit_settlements"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_DRAFT
+    )
+
+    # 1. Base Compensation
+    last_drawn_basic = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    daily_basic_rate = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+
+    # Prorated final month salary
+    worked_days_in_final_month = models.IntegerField(default=0)
+    days_in_final_month = models.IntegerField(default=30)
+    prorated_salary = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    # Unused leave encashment
+    leave_encashment_days = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal("0.00"))
+    leave_encashment_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    # Approved unpaid expense claims
+    reimbursable_expenses_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    # Gratuity
+    tenure_years = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0.00"))
+    is_gratuity_eligible = models.BooleanField(default=False)
+    gratuity_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    # Additional custom earnings / bonus / incentives
+    additional_earnings = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    additional_earnings_notes = models.CharField(max_length=255, blank=True)
+
+    # Total earnings
+    total_earnings = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    # 2. Deductible Recoveries
+    # Notice period shortfall recovery
+    notice_shortfall_days = models.IntegerField(default=0)
+    notice_shortfall_recovery = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    # Outstanding salary advances or equipment damages
+    salary_advance_recovery = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    asset_damage_recovery = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    # Final statutory deductions
+    epf_deduction = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    esi_deduction = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    professional_tax = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    tds_deduction = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    total_statutory_deductions = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    # Additional custom deductions
+    additional_deductions = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    additional_deductions_notes = models.CharField(max_length=255, blank=True)
+
+    # Total deductions
+    total_deductions = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    # 3. Net Balance
+    net_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    is_recoverable = models.BooleanField(default=False)
+
+    # Audit & Process Controls
+    statement_number = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    is_locked = models.BooleanField(default=False, help_text="Locked once final HR sign-off is completed")
+    signed_off_at = models.DateTimeField(null=True, blank=True)
+    signed_off_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="signed_off_exit_settlements"
+    )
+    sign_off_notes = models.TextField(blank=True)
+    calculated_at = models.DateTimeField(auto_now_add=True)
+    calculated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="calculated_exit_settlements"
+    )
+    finalized_at = models.DateTimeField(null=True, blank=True)
+    finalized_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="finalized_exit_settlements"
+    )
+    remarks = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "exit_settlement"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"ExitSettlement: {self.employee.name} (Net: ₹{self.net_amount})"
+
+    @property
+    def abs_net_amount(self):
+        return abs(self.net_amount)
+
+    @property
+    def payment_type_label(self):
+        return "Net Recoverable (Employee Owes Company)" if self.is_recoverable else "Net Payable (Company Pays Employee)"
+
+    def ensure_statement_number(self):
+        if not self.statement_number:
+            org_code = getattr(self.organization, "code", "HRMS")
+            period = timezone.localdate().strftime("%Y%m")
+            self.statement_number = f"FNF-{org_code}-{period}-{self.pk:04d}"
+            self.save(update_fields=["statement_number"])
+        return self.statement_number
+
+    def recalculate_totals(self):
+        """Recalculates total earnings, total deductions, and net payable/recoverable balance."""
+        self.total_statutory_deductions = (
+            self.epf_deduction + self.esi_deduction + self.professional_tax + self.tds_deduction
+        )
+        self.total_earnings = (
+            self.prorated_salary
+            + self.leave_encashment_amount
+            + self.reimbursable_expenses_amount
+            + self.gratuity_amount
+            + self.additional_earnings
+        )
+        self.total_deductions = (
+            self.notice_shortfall_recovery
+            + self.salary_advance_recovery
+            + self.asset_damage_recovery
+            + self.total_statutory_deductions
+            + self.additional_deductions
+        )
+        self.net_amount = self.total_earnings - self.total_deductions
+        self.is_recoverable = (self.net_amount < 0)
+
+

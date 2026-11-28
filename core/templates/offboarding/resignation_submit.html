@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Submit Resignation | HROS{% endblock %}
+
+{% block content %}
+<div class="head">
+    <div>
+        <h1>Formal Resignation Submission</h1>
+        <p class="muted">Initiate your separation process, submit your proposed last working day, and review your notice period obligations.</p>
+    </div>
+    <div class="actions">
+        <a class="btn ghost" href="{% url 'my_profile' %}">&larr; Back to My Profile</a>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; align-items: start;">
+    <!-- Resignation Form Card -->
+    <section class="card" style="padding: 1.5rem;">
+        <h3 style="margin-top: 0; margin-bottom: 1rem; color: #1e293b;">Resignation Notice Details</h3>
+
+        {% if form.errors %}
+            <div style="background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1.25rem;">
+                <strong>Please resolve the following errors:</strong>
+                <ul style="margin: 0.5rem 0 0 1.25rem; padding: 0;">
+                    {% for field in form %}
+                        {% for error in field.errors %}
+                            <li>{{ field.label }}: {{ error }}</li>
+                        {% endfor %}
+                    {% endfor %}
+                    {% for error in form.non_field_errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+
+            <div style="margin-bottom: 1.25rem;">
+                <label style="font-weight: 600; display: block; margin-bottom: 0.35rem;">Proposed Last Working Day (LWD)</label>
+                {{ form.requested_lwd }}
+                <small class="muted" style="display: block; margin-top: 0.25rem;">
+                    Your contractual notice period is <strong>{{ notice_period_days }} calendar days</strong>. 
+                    Standard projected LWD: <strong>{{ standard_lwd|date:"d M Y" }}</strong>.
+                </small>
+            </div>
+
+            <div style="margin-bottom: 1.25rem;">
+                <label style="font-weight: 600; display: block; margin-bottom: 0.35rem;">Primary Reason for Leaving</label>
+                {{ form.reason_category }}
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <label style="font-weight: 600; display: block; margin-bottom: 0.35rem;">Resignation Statement &amp; Handover Notes</label>
+                {{ form.reason_detail }}
+                <small class="muted" style="display: block; margin-top: 0.25rem;">
+                    Please share your transition plan, project handovers, and any feedback for the leadership team.
+                </small>
+            </div>
+
+            <div style="display: flex; gap: 1rem; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 1.25rem;">
+                <button type="submit" class="btn" style="background: #e11d48; border-color: #e11d48;" onclick="return confirm('Are you sure you want to formally submit your resignation? This will initiate managerial notice period review.');">
+                    Submit Resignation
+                </button>
+                <a href="{% url 'my_profile' %}" class="btn ghost">Cancel</a>
+            </div>
+        </form>
+    </section>
+
+    <!-- Notice & Separation Policy Sidebar -->
+    <div>
+        <div class="card" style="padding: 1.25rem; margin-bottom: 1.25rem; background: #f8fafc;">
+            <h4 style="margin-top: 0; color: #334155;">Notice Policy Guidelines</h4>
+            <ul style="padding-left: 1.25rem; margin-bottom: 0; font-size: 0.85rem; color: #475569; line-height: 1.5;">
+                <li><strong>Notice Period:</strong> {{ notice_period_days }} calendar days from submission.</li>
+                <li><strong>Shortfall Recovery:</strong> Requesting an LWD earlier than the standard notice period may result in notice shortfall deduction unless waived by your Manager / HR.</li>
+                <li><strong>Review Process:</strong> Your Reporting Manager will review your requested LWD and formalize handover milestones.</li>
+                <li><strong>Clearance &amp; Settlement:</strong> After manager approval, cross-departmental clearance (IT assets, Finance no-dues) will proceed.</li>
+            </ul>
+        </div>
+
+        <div class="card" style="padding: 1.25rem;">
+            <h4 style="margin-top: 0; color: #334155;">Employee Details</h4>
+            <div style="font-size: 0.85rem; line-height: 1.6;">
+                <div><strong>Name:</strong> {{ employee.name }}</div>
+                <div><strong>Department:</strong> {{ employee.department.name|default:"General" }}</div>
+                <div><strong>Designation:</strong> {{ employee.designation|default:"Team Member" }}</div>
+                <div><strong>Joined On:</strong> {{ employee.joined_on|date:"d M Y" }}</div>
+                <div><strong>Reporting Manager:</strong> {{ employee.manager.name|default:"Department Head" }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

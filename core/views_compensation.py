@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -103,7 +103,7 @@ def salary_revision_propose(request):
             )
             messages.success(request, f"Salary revision proposed for {employee.name} (Effective {effective_date}).")
             return redirect("compensation_dashboard")
-        except (ValueError, ValidationError, Employee.DoesNotExist) as exc:
+        except (ValueError, InvalidOperation, ValidationError, Employee.DoesNotExist) as exc:
             messages.error(request, f"Error proposing revision: {exc}")
 
     return render(request, "compensation/propose_revision.html", {
@@ -213,7 +213,7 @@ def expense_submit(request):
             )
             messages.success(request, f"Expense claim {claim.claim_number} submitted successfully.")
             return redirect("expenses_list")
-        except (ValueError, ValidationError, ExpenseCategory.DoesNotExist) as exc:
+        except (ValueError, InvalidOperation, ValidationError, ExpenseCategory.DoesNotExist) as exc:
             messages.error(request, f"Submission error: {exc}")
 
     return render(request, "compensation/expense_submit.html", {

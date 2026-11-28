@@ -55,7 +55,9 @@ class Command(BaseCommand):
         emp_objs = []
         for name, uname, desig, sal, ph in employees_data:
             # Create user account
-            first, last = name.split(" ", 1)
+            parts = name.split(" ", 1)
+            first = parts[0]
+            last = parts[1] if len(parts) > 1 else ""
             u, _ = User.objects.get_or_create(
                 username=uname,
                 defaults={"email": f"{uname}@hros.local", "first_name": first, "last_name": last}
@@ -88,11 +90,18 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("[OK] 10 Employees and logins created (password: emp123)"))
 
         # Seed Organization Statutory Config and Employee Statutory Profiles + Bank Accounts
+        from apps.organizations.models import OrganizationMembership
         from core.models import default_organization
         from core.models_statutory import OrganizationStatutoryConfig, EmployeeStatutoryProfile
         from core.models_banking import EmployeeBankAccount
 
         default_org = default_organization()
+        for staff_user in User.objects.filter(username__in=["admin", "hr.officer", "payroll.officer"]):
+            OrganizationMembership.objects.get_or_create(
+                user=staff_user,
+                organization=default_org,
+                defaults={"is_active": True},
+            )
         stat_config, _ = OrganizationStatutoryConfig.objects.get_or_create(
             organization=default_org,
             defaults={
@@ -119,7 +128,7 @@ class Command(BaseCommand):
                 employee=emp,
                 defaults={
                     "pan_number": f"ABCDE{i:04d}F",
-                    "uan_number": f"10012345678{i:01d}",
+                    "uan_number": f"1001234567{i:02d}",
                     "epf_enrolled": True,
                     "epf_restrict_to_ceiling": True,
                     "esi_enrolled": True,
@@ -250,19 +259,25 @@ class Command(BaseCommand):
 
         # Organization data: departments, a location and a standard schedule; employees
         # are spread across the departments and the first employee manages the rest.
-        depts = [Department.objects.get_or_create(code=c, defaults={"name": n})[0]
+        depts = [Department.objects.get_or_create(organization=default_org, code=c, defaults={"name": n})[0]
                  for c, n in (("ENG", "Engineering"), ("OPS", "Operations"), ("FIN", "Finance"))]
-        office, _ = WorkLocation.objects.get_or_create(name="Head Office", defaults={"city": "Mumbai", "country": "India"})
+        office, _ = WorkLocation.objects.get_or_create(
+            organization=default_org, name="Head Office", defaults={"city": "Mumbai", "country": "India"}
+        )
         sched, _ = WorkSchedule.objects.get_or_create(
-            name="Standard day", defaults={"start_time": time(9, 0), "end_time": time(18, 0), "break_minutes": 60,
-                                           "grace_minutes": 10, "overtime_eligible": True, "is_default": True})
-        full_time, created = EmploymentType.objects.get_or_create(name="Full-time")
-        people = list(Employee.objects.filter(user__username__regex=r"^[a-z]+\.[a-z]+$")
+            organization=default_org, name="Standard day",
+            defaults={"start_time": time(9, 0), "end_time": time(18, 0), "break_minutes": 60,
+                      "grace_minutes": 10, "overtime_eligible": True, "is_default": True}
+        )
+        full_time, created = EmploymentType.objects.get_or_create(organization=default_org, name="Full-time")
+        people = list(Employee.objects.filter(organization=default_org, user__username__regex=r"^[a-z]+\.[a-z]+$")
                       .exclude(user__username__in=["hr.officer", "payroll.officer"]).order_by("pk"))
         lead = people[0] if people else None
         for i, e in enumerate(people):
             e.department = depts[i % len(depts)]
-            e.position = JobPosition.objects.get_or_create(title=e.designation, defaults={"department": e.department})[0]
+            e.position = JobPosition.objects.get_or_create(
+                organization=default_org, title=e.designation, defaults={"department": e.department}
+            )[0]
             e.employment_type, e.work_location, e.work_schedule = full_time, office, sched
             e.manager = lead if e != lead else None
             e.save()
@@ -272,9 +287,8 @@ class Command(BaseCommand):
         from decimal import Decimal
         from core.models_compensation import CompensationBand, SalaryRevision
         from core.models_expenses import ExpenseCategory, ExpenseClaim
-        from apps.organizations.models import Organization
 
-        org = Organization.objects.first()
+        org = default_org
 
         bands_data = [
             ("BAND-L1", "Junior Associate / Associate", Decimal("25000.00"), Decimal("40000.00")),
