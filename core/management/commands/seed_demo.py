@@ -55,7 +55,9 @@ class Command(BaseCommand):
         emp_objs = []
         for name, uname, desig, sal, ph in employees_data:
             # Create user account
-            first, last = name.split(" ", 1)
+            parts = name.split(" ", 1)
+            first = parts[0]
+            last = parts[1] if len(parts) > 1 else ""
             u, _ = User.objects.get_or_create(
                 username=uname,
                 defaults={"email": f"{uname}@hros.local", "first_name": first, "last_name": last}
